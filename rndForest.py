@@ -1,9 +1,10 @@
 
 """
-Random Forest ML implementation
+Random Forest ML for H-NCNT
 Includes options for cross-validation,
 hyperparameter gridsearch, calculation 
 of SHAP feature importances and plotting
+e.g. learning curves
 
 author: Rasmus Kronberg
 """

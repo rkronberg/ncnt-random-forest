@@ -1,9 +1,10 @@
 
 """
-Random Forest ML implementation
+Random Forest ML for H-NCNT
 Includes options for cross-validation,
 hyperparameter gridsearch, calculation 
 of SHAP feature importances and plotting
+e.g. learning curves
 
 author: Rasmus Kronberg
 """
@@ -19,22 +20,16 @@ import argparse
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpa
 
+
 def lcurve(rf,x,y):
 
-    # Function for plotting learning curve
+    # Function for calculating learning curve (10-CV)
 
-    train_sizes,train_scores,test_scores = learning_curve(rf,x,y,
-        cv=5,shuffle=True,random_state=rnd)
+    train_sizes,train_scores,test_scores = learning_curve(rf,x,y,cv=10,
+        train_sizes=np.linspace(0.1,1,9),shuffle=True,random_state=rnd)
 
-    fig,ax=plt.subplots(figsize=(7,6))
-    plt.plot(train_sizes,np.mean(train_scores,axis=1),'k-')
-    plt.errorbar(train_sizes,np.mean(train_scores,axis=1),
-        yerr=np.std(train_scores,axis=1,ddof=1),fmt='ko',capsize=4)
-    plt.minorticks_on()
-    ax.tick_params(which='both',direction='in',top=True,right=True)
-    plt.xlabel(r'Training set size')
-    plt.ylabel(r'$R^2$ score')
-    plt.subplots_adjust(left=0.15,bottom=0.13)
+    return train_sizes, train_scores
+
 
 def doSHAP(rf,x_train):
 
@@ -51,6 +46,7 @@ def doSHAP(rf,x_train):
 
     return shap_imps, shap_corrs
 
+
 def plotSHAP(shap_i,shap_c,featureNames):
 
     # Function for plotting (cross-validated) SHAP feature importances
@@ -58,53 +54,49 @@ def plotSHAP(shap_i,shap_c,featureNames):
     shap_ave = np.mean(shap_i,axis=0)
     corr_ave = np.mean(shap_c,axis=0)
     shap_std = np.std(shap_i,axis=0,ddof=1)
-
     ind_shap = np.argsort(shap_ave)
+    
+    featureSym=[r'$x_\mathrm{V}$',r'$x_\mathrm{N}$',r'$Z$',r'RMSD',r'RMaxSD',r'$\min\{d\}$',
+    r'$\langle d\rangle$',r'$M$',r'Type',r'$q_\mathrm{ad}$',r'$\mu_\mathrm{ad}$',r'$E_g$',
+    r'$\mathrm{CN}_\mathrm{N}$',r'$\Delta\mathrm{CN}_\mathrm{N}$',r'$\mathrm{CN}_\mathrm{ad}$',
+    r'$\Delta\mathrm{CN}_\mathrm{ad}$',r'$\min\{\theta_\mathrm{ad}\}$',r'$\max\{\theta_\mathrm{ad}\}$',
+    r'$\min\{\theta_\mathrm{N}\}$',r'$\max\{\theta_\mathrm{N}\}$',r'$\cos\alpha_\mathrm{disp}$']
 
-    featureSym=[r'RMSD',r'$x_\mathrm{N}$',r'$Z$',r'CN$_\mathrm{ad}$',r'$\Delta$CN$_\mathrm{ad}$',
-                    r'$\min\{\theta\}$',r'$\max\{\theta\}$',r'$\min\{d\}$',r'$\langle d\rangle$',
-                    r'CN$_\mathrm{N}$',r'$\Delta$CN$_\mathrm{N}$',r'$x_\mathrm{V}$',
-                    r'$\Delta\theta$',r'$M$',r'$n$',r'$m$']
-
-    print('Feature importances (5-CV Shapley, positive or negative correlation):')
-    fig,ax=plt.subplots(figsize=(6,6))
-    for i in ind_shap:
+    print('Feature importances (SHAP, positive or negative correlation):')
+    fig,ax=plt.subplots(figsize=(7,6))
+    for i in ind_shap[-10:]:
         if corr_ave[i] >= 0:
             print('%s: %s (+)' % (featureNames[i],shap_ave[i]))
-            plt.barh(featureNames[i],shap_ave[i],xerr=shap_std[i],capsize=3,
-                error_kw={'elinewidth':1},color='C3')
+            plt.barh(featureSym[i],shap_ave[i],xerr=shap_std[i],capsize=4,color='C3')
         else:
             print('%s: %s (-)' % (featureNames[i],shap_ave[i]))
-            plt.barh(featureNames[i],shap_ave[i],xerr=shap_std[i],capsize=3,
-                error_kw={'elinewidth':1},color='C9',label=r'$R_{ij}<0$')
+            plt.barh(featureSym[i],shap_ave[i],xerr=shap_std[i],capsize=4,color='C9')
 
     plt.minorticks_on()
     ax.tick_params(which='both',direction='in',top=True,left=False)
+    ax.tick_params(axis='y',labelsize=16)
     plt.xlabel(r'$\langle|\phi_j|\rangle$')
-    plt.subplots_adjust(left=0.20,bottom=0.13)
-    for tick in ax.yaxis.get_major_ticks():
-        tick.label.set_fontsize(18)
-    plt.xticks([0,0.03,0.06,0.09])
+    plt.subplots_adjust(left=0.17,bottom=0.13)
+    plt.xticks([0,0.02,0.04,0.06,0.08])
     plt.xlim(left=0)
-    red_patch = mpa.Patch(color='C3',label=r'Pos. Corr.')
-    blue_patch = mpa.Patch(color='C9',label=r'Neg. Corr.')
+    red_patch = mpa.Patch(color='C3',label=r'$r_{ij}\geq0$')
+    blue_patch = mpa.Patch(color='C9',label=r'$r_{ij}<0$')
     plt.legend(handles=[red_patch,blue_patch],frameon=False,loc='lower right')
+
 
 def crossval(x,y,model,strat):
 
     # Function for cross-validated results
 
-    n_splits=5
-    kf = StratifiedKFold(n_splits=n_splits,shuffle=True,random_state=rnd)
-
+    n_splits=10
     error_test = []
     error_train = []
-
     error_R2_test = []
     error_R2_train = []
-
     shap_i = []
     shap_c = []
+
+    kf = StratifiedKFold(n_splits=n_splits,shuffle=True,random_state=rnd)
 
     for train, test in kf.split(x,strat):
         model.fit(x[train], y[train])
@@ -115,8 +107,8 @@ def crossval(x,y,model,strat):
         error_R2_test.append(model.score(x[test], y[test]))
         error_R2_train.append(model.score(x[train], y[train]))
 
-        # Perform SHAP analysis?
-        if(False):
+        # SHAP analysis
+        if(SHAP):
             shap_imps, shap_corrs = doSHAP(model,x[train])
             shap_i.append(shap_imps)
             shap_c.append(shap_corrs)
@@ -131,30 +123,31 @@ def crossval(x,y,model,strat):
     score_R2_train = np.mean(error_R2_train)
     score_R2_train_std = np.std(error_R2_train, ddof=1)
 
+    print('%s-fold cross-validation (training data: %s, test data: %s)' % (n_splits,len(train),len(test)))
     print('R2 score (Training set, CV): %s +- %s' % (score_R2_train,score_R2_train_std))
     print('R2 score (Test set, CV): %s +- %s' % (score_R2_test,score_R2_test_std))
     print('RMSE (Training set, CV): %s +- %s eV' % (score_train,score_train_std))
     print('RMSE (Test set, CV): %s +- %s eV' % (score_test,score_test_std))
 
-    return(y[train],y_pred_train,y[test],y_pred_test,shap_i,shap_c)
+    return y[train],y_pred_train,y[test],y_pred_test,shap_i,shap_c
+
 
 def gridsearch(x,y,strat):
 
     # Function for performing hyperparameter grid search
 
-    x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.2,
+    x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.1,
         stratify=strat,shuffle=True,random_state=rnd)
-
-    rf=GridSearchCV(RandomForestRegressor(oob_score=True,random_state=rnd),cv=5,
-        param_grid={"n_estimators": np.linspace(500,500,1,dtype=int),
-        "max_features": np.linspace(1,len(x[0,:]),len(x[0,:]+1),dtype=int)})
-
+    rf=GridSearchCV(RandomForestRegressor(oob_score=True,random_state=rnd),cv=10,
+        param_grid={"n_estimators": np.linspace(100,500,5,dtype=int),
+        "max_features": np.linspace(1,len(x[0,:]),len(x[0,:])+1,dtype=int)})
     rf.fit(x_train,y_train)
     print('Best parameters from gridsearch: %s' % rf.best_params_)
 
-def plot(y,y_train,y_pred_train,y_test,y_pred_test):
 
-    # Function for plotting predictions vs. DFT data
+def plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores):
+
+    # Function for plotting predictions vs. DFT data and learning curve
 
     fig,ax=plt.subplots(figsize=(7,6))
     plt.plot([-3,3],[-3,3],'k--')
@@ -170,11 +163,24 @@ def plot(y,y_train,y_pred_train,y_test,y_pred_test):
     plt.subplots_adjust(left=0.17,bottom=0.13)
     plt.legend(frameon=False,handletextpad=0.1,loc='upper left')
 
+    if(LC):
+        ax2 = fig.add_axes([0.58, 0.22, 0.28, 0.26])
+        ax2.plot(train_sizes,np.mean(train_scores,axis=1),'k-')
+        ax2.errorbar(train_sizes,np.mean(train_scores,axis=1),
+            yerr=np.std(train_scores,axis=1,ddof=1),fmt='ko',capsize=4)
+        ax2.minorticks_on()
+        ax2.tick_params(which='both',direction='in',top=True,right=True,labelsize=14)
+        ax2.set_xlabel(r'Training set size',fontsize=14)
+        ax2.set_ylabel(r'$R^2$',fontsize=14)
+        ax2.set_yticks([0.92,0.94,0.96,0.98])
+        ax2.xaxis.set_label_coords(0.5,-0.15)
+
     plt.show()
 
 
 def line():
     print('\n========================\n')
+
 
 def main():
 
@@ -185,18 +191,19 @@ def main():
     print(data.dtypes)
 
     # Select the features
-    featureNames=np.array(['rmsd','cN','cV','Zsite','dmin','dave','mult','n','m','refnearNcoord',
-        'diffnearNcoord','refAcoord','diffAcoord','minAng','maxAng','angDisp'])
+    featureNames=np.array(['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','chir','qad','muad',
+        'Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp'])
+
     nFeatures=len(featureNames)
     nSamples=len(data) 
     x=np.zeros((nSamples,nFeatures))
     i=0
-    for featureName in featureNames:
-        x[:,i]=data[featureName].values
+    for name in featureNames:
+        x[:,i]=data[name].values
         i+=1
 
     # Target variable
-    y=data['E_ad'].values
+    y=data['Ead'].values
 
     # Stratify based on adsorption energies for balanced train-test splits
     strat=np.around(y)
@@ -208,8 +215,8 @@ def main():
     print('Metadata:')
     print(data.describe())
 
-    # Search best parameters for n_estimators, max_features?
-    if(False):
+    # Search best parameters for n_estimators, max_features and quit?
+    if(GS):
         gridsearch(x,y,strat)
         quit()
 
@@ -218,18 +225,19 @@ def main():
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-    rf = RandomForestRegressor(n_estimators=500, max_features=None,
+    rf = RandomForestRegressor(n_estimators=200, max_features=10,
         oob_score=True,random_state=rnd)
 
-    # Plot learning curve?
-    if(False):
-        lcurve(rf,x,y)
+    # Learning curve
+    train_sizes,train_scores=0,0
+    if(LC):
+        train_sizes, train_scores = lcurve(rf,x,y)
 
-    # Do cross-validation?
-    if(True):
+    # Cross-validation
+    if(CV):
         y_train,y_pred_train,y_test,y_pred_test,shap_i,shap_c = crossval(x,y,rf,strat)
     else:
-        x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.2,
+        x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.1,
             stratify=strat,shuffle=True,random_state=rnd)
         rf.fit(x_train,y_train)
         print('Score (training set) R2: %s' % rf.score(x_train, y_train))
@@ -239,27 +247,32 @@ def main():
         print('RMSE (training set): %s eV' % np.sqrt(MSE(y_train,y_pred_train)))
         print('RMSE (test set): %s eV' % np.sqrt(MSE(y_test,y_pred_test)))
 
-    # Calculate and plot Shapley importances?
-    if(False):
+    # Plot SHAP importances
+    if(SHAP and CV):
         line()
         plotSHAP(shap_i,shap_c,featureNames)
 
     line()
 
-    # Plot predictions vs. DFT data.
-    if(True):
-        plot(y,y_train,y_pred_train,y_test,y_pred_test)
+    # Plot predictions vs. DFT data
+    if(Plot):
+        plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores)
 
 if __name__ == '__main__':
+    rnd=123         # Random state seed
+    SHAP=False      # Do SHAP analysis (only with CV)?
+    Plot=True       # Plot predictions vs. DFT data?
+    CV=True         # Do cross-validation?
+    LC=False        # Plot learning curve?
+    GS=False        # Grid search for hyperparameters?
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)
     plt.rc('lines', linewidth=2)
     plt.rc('xtick.major',width=2,size=7)
-    plt.rc('xtick.minor',width=2,size=4)
+    plt.rc('xtick.minor',width=1,size=4)
     plt.rc('ytick.major',width=2,size=7)
-    plt.rc('ytick.minor',width=2,size=4)
-    rnd=1
+    plt.rc('ytick.minor',width=1,size=4)
     parser = argparse.ArgumentParser(description='Random Forest Machine Learning')
     parser.add_argument('-i','--input',help='Input data')
     args = vars(parser.parse_args())

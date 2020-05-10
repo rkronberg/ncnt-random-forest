@@ -10,18 +10,36 @@ author: Rasmus Kronberg
 
 # Load necessary packages
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import StratifiedKFold, GridSearchCV, train_test_split
-from sklearn.metrics import mean_absolute_error as MAE
+from sklearn.model_selection import StratifiedKFold,GridSearchCV,train_test_split,learning_curve
 from sklearn.metrics import mean_squared_error as MSE
-from sklearn.metrics import r2_score as R2
+import shap
 import pandas as pd
 import numpy as np
 import argparse
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import shap
+import matplotlib.patches as mpa
+
+def lcurve(rf,x,y):
+
+    # Function for plotting learning curve
+
+    train_sizes,train_scores,test_scores = learning_curve(rf,x,y,
+        cv=5,shuffle=True,random_state=rnd)
+
+    fig,ax=plt.subplots(figsize=(7,6))
+    plt.plot(train_sizes,np.mean(train_scores,axis=1),'k-')
+    plt.errorbar(train_sizes,np.mean(train_scores,axis=1),
+        yerr=np.std(train_scores,axis=1,ddof=1),fmt='ko',capsize=4)
+    plt.minorticks_on()
+    ax.tick_params(which='both',direction='in',top=True,right=True)
+    plt.xlabel(r'Training set size')
+    plt.ylabel(r'$R^2$ score')
+    plt.subplots_adjust(left=0.15,bottom=0.13)
 
 def doSHAP(rf,x_train):
+
+    # Function for calculating feature importances based on Shapley values
+    # and correlation coefficients for the signed impacts on the model output
 
     i = 0
     shap_corrs = []
@@ -33,7 +51,9 @@ def doSHAP(rf,x_train):
 
     return shap_imps, shap_corrs
 
-def doPlotSHAP(shap_i,shap_c,featureNames):
+def plotSHAP(shap_i,shap_c,featureNames):
+
+    # Function for plotting (cross-validated) SHAP feature importances
 
     shap_ave = np.mean(shap_i,axis=0)
     corr_ave = np.mean(shap_c,axis=0)
@@ -51,25 +71,28 @@ def doPlotSHAP(shap_i,shap_c,featureNames):
     for i in ind_shap:
         if corr_ave[i] >= 0:
             print('%s: %s (+)' % (featureNames[i],shap_ave[i]))
-            plt.barh(featureNames[i],shap_ave[i],xerr=shap_std[i],capsize=3,error_kw={'elinewidth':1},color='C3')
+            plt.barh(featureNames[i],shap_ave[i],xerr=shap_std[i],capsize=3,
+                error_kw={'elinewidth':1},color='C3')
         else:
             print('%s: %s (-)' % (featureNames[i],shap_ave[i]))
-            plt.barh(featureNames[i],shap_ave[i],xerr=shap_std[i],capsize=3,error_kw={'elinewidth':1},color='C9',label=r'$R_{ij}<0$')
+            plt.barh(featureNames[i],shap_ave[i],xerr=shap_std[i],capsize=3,
+                error_kw={'elinewidth':1},color='C9',label=r'$R_{ij}<0$')
 
     plt.minorticks_on()
-    plt.gca().tick_params(which='both',direction='in',top=True,left=False)
+    ax.tick_params(which='both',direction='in',top=True,left=False)
     plt.xlabel(r'$\langle|\phi_j|\rangle$')
     plt.subplots_adjust(left=0.20,bottom=0.13)
     for tick in ax.yaxis.get_major_ticks():
-        tick.label.set_fontsize(18) 
+        tick.label.set_fontsize(18)
     plt.xticks([0,0.03,0.06,0.09])
     plt.xlim(left=0)
-
-    red_patch = mpatches.Patch(color='C3',label=r'Pos. Corr.')
-    blue_patch = mpatches.Patch(color='C9',label=r'Neg. Corr.')
+    red_patch = mpa.Patch(color='C3',label=r'Pos. Corr.')
+    blue_patch = mpa.Patch(color='C9',label=r'Neg. Corr.')
     plt.legend(handles=[red_patch,blue_patch],frameon=False,loc='lower right')
 
 def crossval(x,y,model,strat):
+
+    # Function for cross-validated results
 
     n_splits=5
     kf = StratifiedKFold(n_splits=n_splits,shuffle=True,random_state=rnd)
@@ -92,7 +115,8 @@ def crossval(x,y,model,strat):
         error_R2_test.append(model.score(x[test], y[test]))
         error_R2_train.append(model.score(x[train], y[train]))
 
-        if(True):
+        # Perform SHAP analysis?
+        if(False):
             shap_imps, shap_corrs = doSHAP(model,x[train])
             shap_i.append(shap_imps)
             shap_c.append(shap_corrs)
@@ -115,6 +139,9 @@ def crossval(x,y,model,strat):
     return(y[train],y_pred_train,y[test],y_pred_test,shap_i,shap_c)
 
 def gridsearch(x,y,strat):
+
+    # Function for performing hyperparameter grid search
+
     x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.2,
         stratify=strat,shuffle=True,random_state=rnd)
 
@@ -125,7 +152,9 @@ def gridsearch(x,y,strat):
     rf.fit(x_train,y_train)
     print('Best parameters from gridsearch: %s' % rf.best_params_)
 
-def doPlot(y,y_train,y_pred_train,y_test,y_pred_test):
+def plot(y,y_train,y_pred_train,y_test,y_pred_test):
+
+    # Function for plotting predictions vs. DFT data
 
     fig,ax=plt.subplots(figsize=(7,6))
     plt.plot([-3,3],[-3,3],'k--')
@@ -135,7 +164,7 @@ def doPlot(y,y_train,y_pred_train,y_test,y_pred_test):
     plt.xlim(np.amin(y)-0.1,np.amax(y)+0.1)
     plt.ylim(np.amin(y)-0.1,np.amax(y)+0.1)
     plt.minorticks_on()
-    plt.gca().tick_params(which='both',direction='in',right=True,top=True)
+    ax.tick_params(which='both',direction='in',right=True,top=True)
     plt.ylabel(r'$\Delta E_\mathrm{RF}$ (eV)')
     plt.xlabel(r'$\Delta E_\mathrm{DFT}$ (eV)')
     plt.subplots_adjust(left=0.17,bottom=0.13)
@@ -152,7 +181,6 @@ def main():
     # Get the data
     line()
     data = pd.read_csv(args['input'])
-
     print("Data types in dataframe:")
     print(data.dtypes)
 
@@ -190,9 +218,12 @@ def main():
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-
-    rf = RandomForestRegressor(n_estimators=20, max_features=None,
+    rf = RandomForestRegressor(n_estimators=500, max_features=None,
         oob_score=True,random_state=rnd)
+
+    # Plot learning curve?
+    if(False):
+        lcurve(rf,x,y)
 
     # Do cross-validation?
     if(True):
@@ -209,25 +240,25 @@ def main():
         print('RMSE (test set): %s eV' % np.sqrt(MSE(y_test,y_pred_test)))
 
     # Calculate and plot Shapley importances?
-    if(True):
+    if(False):
         line()
-        doPlotSHAP(shap_i,shap_c,featureNames) 
+        plotSHAP(shap_i,shap_c,featureNames)
 
     line()
 
-    # Plot predictions vs. training and test sets?
+    # Plot predictions vs. DFT data.
     if(True):
-        doPlot(y,y_train,y_pred_train,y_test,y_pred_test)
+        plot(y,y_train,y_pred_train,y_test,y_pred_test)
 
 if __name__ == '__main__':
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
-    plt.rc('axes', linewidth=1.5)
-    plt.rc('lines', linewidth=1.5)
-    plt.rc('xtick.major',width=1.5,size=7)
-    plt.rc('xtick.minor',width=1.5,size=4)
-    plt.rc('ytick.major',width=1.5,size=7)
-    plt.rc('ytick.minor',width=1.5,size=4)
+    plt.rc('axes', linewidth=2)
+    plt.rc('lines', linewidth=2)
+    plt.rc('xtick.major',width=2,size=7)
+    plt.rc('xtick.minor',width=2,size=4)
+    plt.rc('ytick.major',width=2,size=7)
+    plt.rc('ytick.minor',width=2,size=4)
     rnd=1
     parser = argparse.ArgumentParser(description='Random Forest Machine Learning')
     parser.add_argument('-i','--input',help='Input data')

@@ -162,9 +162,10 @@ def main():
 			dmin.append(np.amin(dNad))
 			dave.append(np.mean(dNad))
 
-			rAd,thetaAd = cart2pol(refopt[site].position[0],refopt[site].position[1])
-			rN,thetaN = cart2pol(refopt[nearN].position[0],refopt[nearN].position[1])
-			angdisp.append(abs(thetaAd-thetaN))
+			yzAd = (refopt[site].position[1],refopt[site].position[2])
+			zaxis = (0,1)
+			cosA = np.dot(zaxis,yzAd)/(np.linalg.norm(yzAd)*np.linalg.norm(zaxis))
+			angdisp.append(abs(cosA))
 
 			angle=[]
 			siteNNcycl = np.append(siteNN,siteNN[0])

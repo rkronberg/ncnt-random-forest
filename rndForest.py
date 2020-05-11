@@ -116,8 +116,8 @@ def crossval(x,y,model,strat):
         error_R2_test.append(model.score(x[test], y[test]))
         error_R2_train.append(model.score(x[train], y[train]))
 
-        # Perform SHAP analysis?
-        if(False):
+        # SHAP analysis
+        if(SHAP):
             shap_imps, shap_corrs = doSHAP(model,x[train])
             shap_i.append(shap_imps)
             shap_c.append(shap_corrs)
@@ -186,18 +186,18 @@ def main():
     print(data.dtypes)
 
     # Select the features
-    featureNames=np.array(['rmsd','cN','cV','Zsite','dmin','dave','mult','n','m','refnearNcoord',
-        'diffnearNcoord','refAcoord','diffAcoord','minAng','maxAng','angDisp'])
+    featureNames=np.array(['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','n','m',
+        'CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp'])
     nFeatures=len(featureNames)
     nSamples=len(data) 
     x=np.zeros((nSamples,nFeatures))
     i=0
-    for featureName in featureNames:
-        x[:,i]=data[featureName].values
+    for name in featureNames:
+        x[:,i]=data[name].values
         i+=1
 
     # Target variable
-    y=data['E_ad'].values
+    y=data['Ead'].values
 
     # Stratify based on adsorption energies for balanced train-test splits
     strat=np.around(y)
@@ -210,7 +210,7 @@ def main():
     print(data.describe())
 
     # Search best parameters for n_estimators, max_features?
-    if(False):
+    if(GS):
         gridsearch(x,y,strat)
         quit()
 
@@ -219,15 +219,15 @@ def main():
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-    rf = RandomForestRegressor(n_estimators=500, max_features=None,
+    rf = RandomForestRegressor(n_estimators=500, max_features=10,
         oob_score=True,random_state=rnd)
 
-    # Plot learning curve?
-    if(False):
+    # Learning curve
+    if(LC):
         lcurve(rf,x,y)
 
-    # Do cross-validation?
-    if(True):
+    # Cross-validation
+    if(CV):
         y_train,y_pred_train,y_test,y_pred_test,shap_i,shap_c = crossval(x,y,rf,strat)
     else:
         x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.2,
@@ -240,18 +240,24 @@ def main():
         print('RMSE (training set): %s eV' % np.sqrt(MSE(y_train,y_pred_train)))
         print('RMSE (test set): %s eV' % np.sqrt(MSE(y_test,y_pred_test)))
 
-    # Calculate and plot Shapley importances?
-    if(False):
+    # Plot SHAP importances
+    if(SHAP):
         line()
         plotSHAP(shap_i,shap_c,featureNames)
 
     line()
 
-    # Plot predictions vs. DFT data.
-    if(True):
+    # Plot predictions vs. DFT data
+    if(Plot):
         plot(y,y_train,y_pred_train,y_test,y_pred_test)
 
 if __name__ == '__main__':
+    rnd=123         # Random state seed
+    SHAP=True       # Do SHAP analysis (only with CV)?
+    Plot=True       # Plot predictions vs. DFT data?
+    CV=True         # Do cross-validation?
+    LC=False        # Plot learning curve?
+    GS=False        # Do grid search for hyperparameters
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)
@@ -260,7 +266,6 @@ if __name__ == '__main__':
     plt.rc('xtick.minor',width=2,size=4)
     plt.rc('ytick.major',width=2,size=7)
     plt.rc('ytick.minor',width=2,size=4)
-    rnd=1
     parser = argparse.ArgumentParser(description='Random Forest Machine Learning')
     parser.add_argument('-i','--input',help='Input data')
     args = vars(parser.parse_args())

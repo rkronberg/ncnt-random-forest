@@ -64,6 +64,8 @@ def main():
 	mult = []			# Nanotube multiplicity
 	n = []				# Nanotube n
 	m = []				# Nanotube m
+	muad = []			# Spin moment on adsorption site
+	qad = []			# Partial charge on adsorption site
 	CNN = []			# Coordination number (CN) of closest N
 	dCNN = []			# Change in N CN during geoopt
 	CNad = []			# CN of adsorption site
@@ -138,6 +140,16 @@ def main():
 
 			# Log features
 
+			# Net atomic charge on adsorption site
+			str4 = "grep ' %s       %s' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $8}'" % (site+1,
+				xyz.symbols[site], d)
+			str5 = "grep ' %s       %s' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $7}'" % (site+1,
+				xyz.symbols[site], d)
+			nac = float(subprocess.check_output(str4,shell=True))
+			qad.append(nac)
+			spin = float(subprocess.check_output(str5,shell=True))
+			muad.append(spin)
+
 			Ead.append((convEner - refEner - 0.5*h2Ener)*27.21138)
 			cN.append(float(len(nitro))/float(len(ref))*100)
 			cV.append((224-len(ref))/224.*100)
@@ -196,9 +208,9 @@ def main():
 			################################################################################
 
 	np.savetxt('masterdata.dat',
-		np.c_[Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,n,m,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp],
-		header='Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,n,m,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp',
-		fmt='%10.3f,%10.3f,%10.3f,%i,%10.3f,%10.3f,%10.3f,%10.3f,%i,%i,%i,%i,%i,%i,%i,%10.3f,%10.3f,%10.3f,%10.3f,%10.3f',
+		np.c_[Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,n,m,qad,muad,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp],
+		header='Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,n,m,qad,muad,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp',
+		fmt='%10.3f,%10.3f,%10.3f,%i,%10.3f,%10.3f,%10.3f,%10.3f,%i,%i,%i,%10.3f,%10.3f,%i,%i,%i,%i,%10.3f,%10.3f,%10.3f,%10.3f,%10.3f',
 		delimiter=',',comments='')
 
 if __name__ == '__main__':

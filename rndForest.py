@@ -74,9 +74,9 @@ def plotSHAP(shap_i,shap_c,featureNames):
 
     plt.minorticks_on()
     ax.tick_params(which='both',direction='in',top=True,left=False)
-    ax.tick_params(axis='y',labelsize=14)
+    ax.tick_params(axis='y',labelsize=16)
     plt.xlabel(r'$\langle|\phi_j|\rangle$')
-    plt.subplots_adjust(left=0.20,bottom=0.13)
+    plt.subplots_adjust(left=0.17,bottom=0.13)
     plt.xticks([0,0.02,0.04,0.06,0.08])
     plt.xlim(left=0)
     red_patch = mpa.Patch(color='C3',label=r'$r_{ij}\geq0$')
@@ -173,6 +173,7 @@ def plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores):
         ax2.set_xlabel(r'Training set size',fontsize=14)
         ax2.set_ylabel(r'$R^2$',fontsize=14)
         ax2.set_yticks([0.92,0.94,0.96,0.98])
+        ax2.xaxis.set_label_coords(0.5,-0.15)
 
     plt.show()
 
@@ -223,7 +224,7 @@ def main():
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-    rf = RandomForestRegressor(n_estimators=500, max_features=10,
+    rf = RandomForestRegressor(n_estimators=50, max_features=10,
         oob_score=True,random_state=rnd)
 
     # Learning curve
@@ -235,7 +236,7 @@ def main():
     if(CV):
         y_train,y_pred_train,y_test,y_pred_test,shap_i,shap_c = crossval(x,y,rf,strat)
     else:
-        x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.2,
+        x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.1,
             stratify=strat,shuffle=True,random_state=rnd)
         rf.fit(x_train,y_train)
         print('Score (training set) R2: %s' % rf.score(x_train, y_train))
@@ -246,7 +247,7 @@ def main():
         print('RMSE (test set): %s eV' % np.sqrt(MSE(y_test,y_pred_test)))
 
     # Plot SHAP importances
-    if(SHAP):
+    if(SHAP and CV):
         line()
         plotSHAP(shap_i,shap_c,featureNames)
 
@@ -262,7 +263,7 @@ if __name__ == '__main__':
     Plot=True       # Plot predictions vs. DFT data?
     CV=True         # Do cross-validation?
     LC=False        # Plot learning curve?
-    GS=False        # Do grid search for hyperparameters
+    GS=False        # Grid search for hyperparameters?
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)

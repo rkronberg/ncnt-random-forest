@@ -23,7 +23,7 @@ import matplotlib.patches as mpa
 
 def lcurve(rf,x,y):
 
-    # Function for plotting learning curve (5-CV)
+    # Function for calculating learning curve (10-CV)
 
     train_sizes,train_scores,test_scores = learning_curve(rf,x,y,cv=10,
         train_sizes=np.linspace(0.1,1,9),shuffle=True,random_state=rnd)
@@ -57,10 +57,10 @@ def plotSHAP(shap_i,shap_c,featureNames):
     ind_shap = np.argsort(shap_ave)
     
     featureSym=[r'$x_\mathrm{V}$',r'$x_\mathrm{N}$',r'$Z$',r'RMSD',r'RMaxSD',r'$\min\{d\}$',
-    r'$\langle d\rangle$',r'$M$',r'$n$',r'$m$',r'$q_\mathrm{ad}$',r'$\mu_\mathrm{ad}$',
+    r'$\langle d\rangle$',r'$M$',r'Type',r'$q_\mathrm{ad}$',r'$\mu_\mathrm{ad}$',r'$E_g$',
     r'$\mathrm{CN}_\mathrm{N}$',r'$\Delta\mathrm{CN}_\mathrm{N}$',r'$\mathrm{CN}_\mathrm{ad}$',
     r'$\Delta\mathrm{CN}_\mathrm{ad}$',r'$\min\{\theta_\mathrm{ad}\}$',r'$\max\{\theta_\mathrm{ad}\}$',
-    r'$\min\{\theta_\mathrm{N}\}$',r'$\max\{\theta_\mathrm{N}\}$',r'$\alpha_\mathrm{disp}$']
+    r'$\min\{\theta_\mathrm{N}\}$',r'$\max\{\theta_\mathrm{N}\}$',r'$\cos\alpha_\mathrm{disp}$']
 
     print('Feature importances (SHAP, positive or negative correlation):')
     fig,ax=plt.subplots(figsize=(7,6))
@@ -136,11 +136,11 @@ def gridsearch(x,y,strat):
 
     # Function for performing hyperparameter grid search
 
-    x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.2,
+    x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.1,
         stratify=strat,shuffle=True,random_state=rnd)
-    rf=GridSearchCV(RandomForestRegressor(oob_score=True,random_state=rnd),cv=5,
-        param_grid={"n_estimators": np.linspace(500,500,1,dtype=int),
-        "max_features": np.linspace(1,len(x[0,:]),len(x[0,:]+1),dtype=int)})
+    rf=GridSearchCV(RandomForestRegressor(oob_score=True,random_state=rnd),cv=10,
+        param_grid={"n_estimators": np.linspace(100,500,5,dtype=int),
+        "max_features": np.linspace(1,len(x[0,:]),len(x[0,:])+1,dtype=int)})
     rf.fit(x_train,y_train)
     print('Best parameters from gridsearch: %s' % rf.best_params_)
 
@@ -191,8 +191,9 @@ def main():
     print(data.dtypes)
 
     # Select the features
-    featureNames=np.array(['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','n','m','qad','muad',
-        'CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp'])
+    featureNames=np.array(['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','chir','qad','muad',
+        'Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp'])
+
     nFeatures=len(featureNames)
     nSamples=len(data) 
     x=np.zeros((nSamples,nFeatures))
@@ -224,7 +225,7 @@ def main():
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-    rf = RandomForestRegressor(n_estimators=50, max_features=10,
+    rf = RandomForestRegressor(n_estimators=200, max_features=10,
         oob_score=True,random_state=rnd)
 
     # Learning curve
@@ -259,7 +260,7 @@ def main():
 
 if __name__ == '__main__':
     rnd=123         # Random state seed
-    SHAP=True      # Do SHAP analysis (only with CV)?
+    SHAP=False      # Do SHAP analysis (only with CV)?
     Plot=True       # Plot predictions vs. DFT data?
     CV=True         # Do cross-validation?
     LC=False        # Plot learning curve?

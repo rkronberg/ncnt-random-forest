@@ -51,7 +51,7 @@ def cylDist(xyz,atom1,atom2):
 
 def main():
 
-    ################################################################################
+    ####################################################################
 
     # Preparations
 
@@ -90,6 +90,8 @@ def main():
     '1N_1H_8x8_pyrrolic_SW_B': 104,'3N_1H_8x8_pyridinic': 103,'4N_1H_8x8_pyridinic': 102,
     '1N_1H_14x0_pyrrolic': 102}
 
+    ###########################################################################
+
     # Loop over the different nanotubes in dirs
     for d in tqdm(dirs):
         # Reference energy (one less hydrogen)
@@ -126,7 +128,7 @@ def main():
             nl = NL('ij',xyz,{('H', 'H'): 1.85, ('C', 'H'): 1.3, 
                 ('N', 'H'): 1.3, ('C', 'C'): 1.85, ('C', 'N'): 1.85})
 
-            ################################################################################
+            ###########################################################################
 
             # Get atom indices
             site = nl[1][-1]                                # Adsorption site, ensure H index -1
@@ -141,7 +143,7 @@ def main():
             nearN = nitro[np.where(dNad == np.amin(dNad))][0]       # N closest to ads. site
             nearNNN = nlref[1][np.where(nlref[0]==nearN)]           # Nearest neighbors of closest N
 
-            ################################################################################
+            ###########################################################################
 
             # Log simple features
 
@@ -228,7 +230,7 @@ def main():
             else:
                 amaxN.append(np.deg2rad(np.amax(angle)))
 
-            ################################################################################
+            ###########################################################################
 
     np.savetxt('masterdata.dat',
         np.c_[Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,chir,qad,muad,Egap,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp],

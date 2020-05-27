@@ -4,7 +4,7 @@ Random forest ML Python implementation for materials science data analysis, name
 ## Usage
 
 ```bash
-python3 rndForest.py [-h] [-i INPUT] [-s] [-p] [-l] [-g]
+python3 rndForest.py [-h] -i INPUT [-s] [-p] [-l] [-g]
 ```
 
 Optional flags for performing SHAP analysis ```-s```, plotting ```-p```, learning curve generation ```-l``` and hyperparameter gridsearch ```-g```

@@ -1,10 +1,9 @@
 
 """
-Random Forest ML for H-NCNT
-Includes options for cross-validation,
-hyperparameter gridsearch, calculation 
-of SHAP feature importances and plotting
-e.g. learning curves
+Random Forest ML for H adsorption on NCNTs
+Includes options for cross-validation, hyperparameter 
+gridsearch, calculation of SHAP feature importances 
+and plotting
 
 author: Rasmus Kronberg
 """
@@ -49,7 +48,7 @@ def doSHAP(rf,x_train):
 
 def plotSHAP(shap_i,shap_c,featureNames):
 
-    # Function for plotting (cross-validated) SHAP feature importances
+    # Function for outputting (cross-validated) SHAP feature importances
 
     shap_ave = np.mean(shap_i,axis=0)
     corr_ave = np.mean(shap_c,axis=0)
@@ -59,8 +58,9 @@ def plotSHAP(shap_i,shap_c,featureNames):
     featureSym=[r'$x_\mathrm{V}$',r'$x_\mathrm{N}$',r'$Z$',r'RMSD',r'RMaxSD',r'$\min\{d\}$',
     r'$\langle d\rangle$',r'$M$',r'Type',r'$q_\mathrm{ad}$',r'$\mu_\mathrm{ad}$',r'$E_g$',
     r'$\mathrm{CN}_\mathrm{N}$',r'$\Delta\mathrm{CN}_\mathrm{N}$',r'$\mathrm{CN}_\mathrm{ad}$',
-    r'$\Delta\mathrm{CN}_\mathrm{ad}$',r'$\min\{\theta_\mathrm{ad}\}$',r'$\max\{\theta_\mathrm{ad}\}$',
-    r'$\min\{\theta_\mathrm{N}\}$',r'$\max\{\theta_\mathrm{N}\}$',r'$\cos\alpha_\mathrm{disp}$']
+    r'$\Delta\mathrm{CN}_\mathrm{ad}$',r'$\min\{\theta_\mathrm{ad}\}$',
+    r'$\max\{\theta_\mathrm{ad}\}$',r'$\min\{\theta_\mathrm{N}\}$',r'$\max\{\theta_\mathrm{N}\}$',
+    r'$\cos\alpha_\mathrm{disp}$']
 
     print('Feature importances (SHAP, positive or negative correlation):')
     fig,ax=plt.subplots(figsize=(7,6))
@@ -123,7 +123,8 @@ def crossval(x,y,model,strat):
     score_R2_train = np.mean(error_R2_train)
     score_R2_train_std = np.std(error_R2_train, ddof=1)
 
-    print('%s-fold cross-validation (training data: %s, test data: %s)' % (n_splits,len(train),len(test)))
+    print('%s-fold cross-validation (training data: %s, test data: %s)' % 
+        (n_splits,len(train),len(test)))
     print('R2 score (Training set, CV): %s +- %s' % (score_R2_train,score_R2_train_std))
     print('R2 score (Test set, CV): %s +- %s' % (score_R2_test,score_R2_test_std))
     print('RMSE (Training set, CV): %s +- %s eV' % (score_train,score_train_std))
@@ -191,8 +192,8 @@ def main():
     print(data.dtypes)
 
     # Select the features
-    featureNames=np.array(['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','chir','qad','muad',
-        'Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp'])
+    featureNames=np.array(['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','chir','qad',
+        'muad','Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp'])
 
     nFeatures=len(featureNames)
     nSamples=len(data) 
@@ -228,43 +229,26 @@ def main():
     rf = RandomForestRegressor(n_estimators=200, max_features=10,
         oob_score=True,random_state=rnd)
 
+    # Cross-validation
+    y_train,y_pred_train,y_test,y_pred_test,shap_i,shap_c = crossval(x,y,rf,strat)
+
     # Learning curve
-    train_sizes,train_scores=0,0
+    (train_sizes,train_scores) = (0,0)
     if(LC):
         train_sizes, train_scores = lcurve(rf,x,y)
 
-    # Cross-validation
-    if(CV):
-        y_train,y_pred_train,y_test,y_pred_test,shap_i,shap_c = crossval(x,y,rf,strat)
-    else:
-        x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.1,
-            stratify=strat,shuffle=True,random_state=rnd)
-        rf.fit(x_train,y_train)
-        print('Score (training set) R2: %s' % rf.score(x_train, y_train))
-        print('Score (test set) R2: %s' % rf.score(x_test, y_test))
-        y_pred_test=rf.predict(x_test)
-        y_pred_train=rf.predict(x_train)
-        print('RMSE (training set): %s eV' % np.sqrt(MSE(y_train,y_pred_train)))
-        print('RMSE (test set): %s eV' % np.sqrt(MSE(y_test,y_pred_test)))
-
     # Plot SHAP importances
-    if(SHAP and CV):
+    if(SHAP):
         line()
         plotSHAP(shap_i,shap_c,featureNames)
 
     line()
 
-    # Plot predictions vs. DFT data
+    # Plot predictions vs. DFT data and learning curve if chosen
     if(Plot):
         plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores)
 
 if __name__ == '__main__':
-    rnd=123         # Random state seed
-    SHAP=False      # Do SHAP analysis (only with CV)?
-    Plot=True       # Plot predictions vs. DFT data?
-    CV=True         # Do cross-validation?
-    LC=False        # Plot learning curve?
-    GS=False        # Grid search for hyperparameters?
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)
@@ -273,7 +257,16 @@ if __name__ == '__main__':
     plt.rc('xtick.minor',width=1,size=4)
     plt.rc('ytick.major',width=2,size=7)
     plt.rc('ytick.minor',width=1,size=4)
-    parser = argparse.ArgumentParser(description='Random Forest Machine Learning')
+    parser = argparse.ArgumentParser(description='Random forest ML model for H adsorption on NCNTs')
     parser.add_argument('-i','--input',help='Input data')
+    parser.add_argument('-s','--shap',action='store_true',help='Do SHAP analysis')
+    parser.add_argument('-p','--plot',action='store_true',help='Plot predictions vs. DFT data')
+    parser.add_argument('-l','--lcurve',action='store_true',help='Plot learning curve')
+    parser.add_argument('-g','--gridsearch',action='store_true',help='Do hyperparameter gridsearch')
     args = vars(parser.parse_args())
+    rnd = 123
+    SHAP = args['shap']
+    Plot = args['plot']
+    LC = args['lcurve']
+    GS = args['gridsearch']
     main()

@@ -7,6 +7,6 @@ Random forest ML Python implementation for materials science data analysis, name
 python3 rndForest.py [-h] [-i INPUT] [-s] [-p] [-l] [-g]
 ```
 
-Optional flags for performing SHAP analysis (```bash -s```), plotting (```bash -l```), generating a learning curve (```bash -l```)  and hyperparameter gridsearch (```bash -g```)
+Optional flags for performing SHAP analysis (```-s```), plotting (```-l```), generating a learning curve (```-l```)  and hyperparameter gridsearch (```-g```)
 
-Repository includes also an ad hoc ```bash dataCollector.py``` script for preprocessing data from CP2K output
+Repository includes also an ad hoc ```dataCollector.py``` script for preprocessing data from CP2K output

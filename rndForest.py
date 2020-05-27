@@ -39,6 +39,9 @@ def doSHAP(rf,x_train):
     shap_corrs = []
     shap_values = shap.TreeExplainer(rf).shap_values(x_train)
     shap_imps = np.mean(abs(shap_values),axis=0)
+    shap.summary_plot(shap_values,x_train)
+    shap.dependence_plot("Feature 5",shap_values,x_train)
+    print(plt.gca())
     for feature in x_train[0]:
         shap_corrs.append(np.corrcoef(shap_values[:,i],x_train[:,i])[1,0])
         i += 1
@@ -226,7 +229,7 @@ def main():
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-    rf = RandomForestRegressor(n_estimators=200, max_features=10,
+    rf = RandomForestRegressor(n_estimators=50, max_features=10,
         oob_score=True,random_state=rnd)
 
     # Cross-validation
@@ -258,7 +261,7 @@ if __name__ == '__main__':
     plt.rc('ytick.major',width=2,size=7)
     plt.rc('ytick.minor',width=1,size=4)
     parser = argparse.ArgumentParser(description='Random forest ML model for H adsorption on NCNTs')
-    parser.add_argument('-i','--input',help='Input data')
+    parser.add_argument('-i','--input',required=True,help='Input data')
     parser.add_argument('-s','--shap',action='store_true',help='Do SHAP analysis')
     parser.add_argument('-p','--plot',action='store_true',help='Plot predictions vs. DFT data')
     parser.add_argument('-l','--lcurve',action='store_true',help='Plot learning curve')

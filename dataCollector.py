@@ -6,6 +6,7 @@ of hydrogen adsorption on NCNTs
 Based on CP2K output
 
 author: Rasmus Kronberg
+rasmus.kronberg@aalto.fi
 """
 
 # Load necessary packages
@@ -41,7 +42,7 @@ def cylDist(xyz,atom1,atom2):
 
     r = np.mean([r1,r2])
     theta = theta1-theta2
-    z = z1-z2
+    z = abs(z1-z2)
 
     #Check PBC
     if z > xyz.get_cell()[2,2]/2:
@@ -55,28 +56,36 @@ def main():
 
     # Preparations
 
+    print('Launching script for parsing features from CP2K output and .xyz coordinate files...')
+    print('Rather ad hoc, proceed with caution and check your results!\n')
+    print('Processing...')
+
     Ead = []        # Adsorption energy
     cV = []         # Concentration of vacancies
     cN = []         # Concentration of nitrogen dopants
-    Zsite = []      # Atomic number of adsorption site
+    cH = []         # Concentration of hydrogens
+    Z = []          # Atomic number of adsorption site
     rmsd = []       # RMSD of atomic positions during geoopt
     rmaxsd = []     # Root maximum squared displacement of at. pos.
-    dmin = []       # Distance from adsorption site to closest N
-    dave = []       # Average distance from adsorption site to all N
+    dminNS = []     # Distance from adsorption site to closest N
+    daveNS = []     # Average distance from adsorption site to all N
+    dminHS = []     # Distance from adsorption site to closest occupied site
+    daveHS = []     # Average distance from adsorption site to all occupied sites
     mult = []       # Nanotube multiplicity
     chir = []       # Nanotube type (0 = zigzag, 1 armchair)
     Egap = []       # HOMO-LUMO gap
-    muad = []       # Spin moment on adsorption site
-    qad = []        # Partial charge on adsorption site
-    CNN = []        # Coordination number (CN) of closest N
-    dCNN = []       # Change in N CN during geoopt
-    CNad = []       # CN of adsorption site
-    dCNad = []      # Change in adsorption site CN
-    aminad = []     # Smallest angle at the adsorption site
-    amaxad = []     # Largest angle at the adsorption site
+    mu = []         # Spin moment on adsorption site
+    q = []          # Partial charge on adsorption site
+    cnN = []        # Coordination number (CN) of closest N
+    dcnN = []       # Change in N CN during geoopt
+    cnS = []        # CN of adsorption site
+    dcnS = []       # Change in adsorption site CN
+    aminS = []      # Smallest angle at the adsorption site
+    amaxS = []      # Largest angle at the adsorption site
     aminN = []      # Smallest C-N-C angle
     amaxN = []      # Largest C-N-C angle
-    angdisp = []    # Angular displacement of the adsorption site wrt. closest N
+    adispN = []     # Angular displacement of the adsorption site wrt. closest dopant
+    adispH = []     # Angular displacement of the adsorption site wrt. closest occupied site
 
     # Get H2 energy
     str1 = "grep 'ENERGY|' ../refs/H2/h2-geoopt.out | tail -1 | awk '{print $9}'"
@@ -88,7 +97,12 @@ def main():
     '4N_1H_14x0_pyridinic': 101, '1N_1H_8x8_graphitic': 118, '1N_1H_8x8_pyridinic': 103,
     '1N_1H_8x8_pyrrolic_SW_A': 104, '2N_1H_8x8_graphitic': 104, '1N_1H_8x8_pyrrolic': 103,
     '1N_1H_8x8_pyrrolic_SW_B': 104,'3N_1H_8x8_pyridinic': 103,'4N_1H_8x8_pyridinic': 102,
-    '1N_1H_14x0_pyrrolic': 102}
+    '1N_1H_14x0_pyrrolic': 102, '1N_2H_14x0_graphitic': 102, '1N_2H_14x0_pyridinic': 101, 
+    '1N_2H_14x0_pyrrolic_SW_A': 102, '1N_2H_14x0_pyrrolic_SW_B': 102, '2N_2H_14x0_graphitic': 102, 
+    '3N_2H_14x0_pyridinic': 102, '4N_2H_14x0_pyridinic': 101, '1N_2H_8x8_graphitic': 96, 
+    '1N_2H_8x8_pyridinic': 103,'1N_2H_8x8_pyrrolic_SW_A': 103, '2N_2H_8x8_graphitic': 103, 
+    '1N_2H_8x8_pyrrolic': 103,'1N_2H_8x8_pyrrolic_SW_B': 96,'3N_2H_8x8_pyridinic': 103,
+    '1N_2H_14x0_pyrrolic': 102}
 
     ###########################################################################
 
@@ -113,7 +127,7 @@ def main():
         ('N', 'H'): 1.3, ('C', 'C'): 1.85, ('C', 'N'): 1.85})
 
         # Loop over each adsorbed state
-        for c in tqdm(np.linspace(0,dirs[d],dirs[d]+1,dtype=int)):
+        for c in tqdm(range(dirs[d]+1),leave=False):
             str3 = "grep 'ENERGY|' ../adsorbed/%s/ncnt_%s-geoopt.out | tail -1 | awk '{print $9}'" % (d,c)
             convEner = float(subprocess.check_output(str3,shell=True))
 
@@ -131,17 +145,29 @@ def main():
             ###########################################################################
 
             # Get atom indices
-            site = nl[1][-1]                                # Adsorption site, ensure H index -1
-            nitro = np.where(xyz.symbols == 'N')[0]         # Nitrogen site(s)
-            nitroNN = nlref[1][np.where(nlref[0]==nitro)]   # Nitrogen nearest neighbors
-            siteNN = nlref[1][np.where(nlref[0]==site)]     # Ads. site nearest neighbors
+            site = nl[1][-1]                                 # Adsorption site, ensure H index -1
+            nitro = np.where(xyz.symbols == 'N')[0]          # Nitrogen site(s)
+            hydro = np.where(refopt.symbols == 'H')[0]       # Previous hydrogens
+            siteNN = nlref[1][np.where(nlref[0]==site)]      # Ads. site nearest neighbors
 
-            dNad = []
+            dNS = []
             for N in nitro:
-                dNad.append(cylDist(refopt,site,N))
+                dNS.append(cylDist(refopt,site,N))
+            nearN = nitro[np.where(dNS == np.amin(dNS))][0]  # N closest to ads. site
+            nearNNN = nlref[1][np.where(nlref[0]==nearN)]    # Nearest neighbors of closest N
 
-            nearN = nitro[np.where(dNad == np.amin(dNad))][0]       # N closest to ads. site
-            nearNNN = nlref[1][np.where(nlref[0]==nearN)]           # Nearest neighbors of closest N
+            dHS = []
+            if len(hydro) != 0:
+                occupied = nlref[1][np.where(nlref[0]==hydro)]  # Occupied sites
+                for occ in occupied:
+                    dHS.append(cylDist(refopt,site,occ))
+                nearH = occupied[np.where(dHS == np.amin(dHS))][0]    # Occupied site closest to ads. site
+            else:
+                nearH = np.nan
+
+            # Skip some extra sites and duplicates
+            if refopt[site].position[0] < 0 or site == nearH:
+                continue
 
             ###########################################################################
 
@@ -151,57 +177,71 @@ def main():
             str4 = "grep ' %s       %s' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $8}'" % (site+1,
                 xyz.symbols[site], d)
             nac = float(subprocess.check_output(str4,shell=True))
-            qad.append(nac)
+            q.append(nac)
 
             # Spin moment on adsorption site
             str5 = "grep ' %s       %s' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $7}'" % (site+1,
                 xyz.symbols[site], d)
             spin = float(subprocess.check_output(str5,shell=True))
-            muad.append(spin)
+            mu.append(spin)
 
             # Band gap
             str6 = "grep 'LUMO gap' ../refs/%s/ncnt-geoopt.out | tail -2 | awk '{print $7}' | sort -n | head -1" % d
             gap = float(subprocess.check_output(str6,shell=True))
             Egap.append(gap)
 
-            #Adsorption energy, dopant/vacancy concentration, site atomic number, multiplicity
+            # Adsorption energy, dopant/vacancy concentration, site atomic number, multiplicity
             Ead.append((convEner - refEner - 0.5*h2Ener)*27.21138)
             cN.append(float(len(nitro))/float(len(ref))*100)
             cV.append((224-len(ref))/224.*100)
-            Zsite.append(int(xyz.get_atomic_numbers()[site]))
+            cH.append(float(len(hydro))/float(len(refopt)-len(hydro))*100)
+            Z.append(int(xyz.get_atomic_numbers()[site]))
             mult.append(int(2*(len(nitro)%2)/2.+1))
 
             # CNT type (zigzag or armchair)  
             if '14x0' in d:
-                chir.append(int(0))
+                chir.append(np.arctan(np.sqrt(3)*0/(2*14+0)))
             elif '8x8' in d:
-                chir.append(int(1))
+                chir.append(np.arctan(np.sqrt(3)*8/(2*8+8)))
 
             # Coordination numbers and relaxation induced changes in CN
-            CNN.append(int(np.bincount(nlref[0])[nearN]))
-            dCNN.append(int(np.bincount(nl[0])[nearN])-CNN[-1])
-            CNad.append(int(np.bincount(nlref[0])[site]))
-            dCNad.append(int(np.bincount(nl[0])[site])-CNad[-1])
+            cnN.append(int(np.bincount(nlref[0])[nearN]))
+            dcnN.append(int(np.bincount(nl[0])[nearN])-cnN[-1])
+            cnS.append(int(np.bincount(nlref[0])[site]))
+            dcnS.append(int(np.bincount(nl[0])[site])-cnS[-1])
 
             # Mean and max displacement of atoms during relaxation  
             rmsd.append(np.sqrt(np.mean((xyz.get_positions()[:-1]-refopt.get_positions())**2)))
             rmaxsd.append(np.sqrt(np.amax((xyz.get_positions()[:-1]-refopt.get_positions())**2)))
 
             # Minimum and average distance to dopants
-            dmin.append(np.amin(dNad))
-            dave.append(np.mean(dNad))
+            dminNS.append(np.amin(dNS))
+            daveNS.append(np.mean(dNS))
 
-            #Angular displacement
-            tmp_pos=refopt[nearN].position.copy()
-            refopt.translate(-tmp_pos)
-            xyzAd = refopt[site].position
-            zaxis = (0,0,1)
-            cosA = np.dot(zaxis,xyzAd)/(np.linalg.norm(xyzAd)*np.linalg.norm(zaxis))
-            if(np.isnan(cosA)):
-                angdisp.append(-999)
+            # Minimum and average distance to occupied sites
+            if np.isnan(nearH):
+                dminHS.append(np.nan)
+                daveHS.append(np.nan)
             else:
-                angdisp.append(abs(cosA))
-            refopt.translate(tmp_pos)
+                dminHS.append(np.amin(dHS))
+                daveHS.append(np.mean(dHS))
+
+            # Angular displacement
+            zaxis = (0,0,1)
+            if site == nearN:
+                adispN.append(np.nan)
+            else:
+                NSvec = refopt[site].position-refopt[nearN].position
+                A = np.arccos(np.dot(NSvec,zaxis)/np.linalg.norm(NSvec))
+                adispN.append(A)
+
+            # Angular displacement
+            if np.isnan(nearH):
+                adispH.append(np.nan)
+            else:
+                HSvec = refopt[site].position-refopt[nearH].position
+                A = np.arccos(np.dot(HSvec,zaxis)/np.linalg.norm(HSvec))
+                adispH.append(A)
 
             # Adsorption and dopant NN angles
             angle=[]
@@ -211,11 +251,11 @@ def main():
                 angle.append(refopt.get_angle(siteNNcycl[S-1],site,siteNNcycl[S],mic=True))
                 S+=1
 
-            aminad.append(np.deg2rad(np.amin(angle)))
+            aminS.append(np.deg2rad(np.amin(angle)))
             if len(angle) == 2:
-                amaxad.append(np.deg2rad(360-np.min(angle)))
+                amaxS.append(np.deg2rad(360-np.min(angle)))
             else:
-                amaxad.append(np.deg2rad(np.amax(angle)))
+                amaxS.append(np.deg2rad(np.amax(angle)))
 
             angle=[]
             NNNcycl = np.append(nearNNN,nearNNN[0])
@@ -233,9 +273,9 @@ def main():
             ###########################################################################
 
     np.savetxt('masterdata.dat',
-        np.c_[Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,chir,qad,muad,Egap,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp],
-        header='Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,chir,qad,muad,Egap,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp',
-        fmt='%10.3f,%10.3f,%10.3f,%i,%10.3f,%10.3f,%10.3f,%10.3f,%i,%i,%10.3f,%10.3f,%10.3f,%i,%i,%i,%i,%10.3f,%10.3f,%10.3f,%10.3f,%10.3f',
+        np.c_[Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,cnN,dcnN,cnS,dcnS,aminS,amaxS,aminN,amaxN,adispN,adispH],
+        header='Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,cnN,dcnN,cnS,dcnS,aminS,amaxS,aminN,amaxN,adispN,adispH',
+        fmt='%8.3f,%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%4i,%4i,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f',
         delimiter=',',comments='')
 
 if __name__ == '__main__':

@@ -136,6 +136,10 @@ def main():
             nitroNN = nlref[1][np.where(nlref[0]==nitro)]   # Nitrogen nearest neighbors
             siteNN = nlref[1][np.where(nlref[0]==site)]     # Ads. site nearest neighbors
 
+            # Skip some extra sites
+            if refopt[site].position[0] < 0:
+                continue
+
             dNad = []
             for N in nitro:
                 dNad.append(cylDist(refopt,site,N))
@@ -173,9 +177,9 @@ def main():
 
             # CNT type (zigzag or armchair)  
             if '14x0' in d:
-                chir.append(int(0))
+                chir.append(np.arctan(np.sqrt(3)*0/(2*14+0)))
             elif '8x8' in d:
-                chir.append(int(1))
+                chir.append(np.arctan(np.sqrt(3)*8/(2*8+8)))
 
             # Coordination numbers and relaxation induced changes in CN
             CNN.append(int(np.bincount(nlref[0])[nearN]))
@@ -192,16 +196,10 @@ def main():
             dave.append(np.mean(dNad))
 
             #Angular displacement
-            tmp_pos=refopt[nearN].position.copy()
-            refopt.translate(-tmp_pos)
-            xyzAd = refopt[site].position
+            NAvec = refopt[site].position-refopt[nearN].position
             zaxis = (0,0,1)
-            cosA = np.dot(zaxis,xyzAd)/(np.linalg.norm(xyzAd)*np.linalg.norm(zaxis))
-            if(np.isnan(cosA)):
-                angdisp.append(-999)
-            else:
-                angdisp.append(abs(cosA))
-            refopt.translate(tmp_pos)
+            A = np.arccos(np.dot(NAvec,zaxis)/np.linalg.norm(NAvec))
+            angdisp.append(A)
 
             # Adsorption and dopant NN angles
             angle=[]
@@ -235,7 +233,7 @@ def main():
     np.savetxt('masterdata.dat',
         np.c_[Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,chir,qad,muad,Egap,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp],
         header='Ead,cV,cN,Zsite,rmsd,rmaxsd,dmin,dave,mult,chir,qad,muad,Egap,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdisp',
-        fmt='%10.3f,%10.3f,%10.3f,%i,%10.3f,%10.3f,%10.3f,%10.3f,%i,%i,%10.3f,%10.3f,%10.3f,%i,%i,%i,%i,%10.3f,%10.3f,%10.3f,%10.3f,%10.3f',
+        fmt='%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%4i,%4i,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f',
         delimiter=',',comments='')
 
 if __name__ == '__main__':

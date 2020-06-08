@@ -12,6 +12,8 @@ author: Rasmus Kronberg
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import StratifiedKFold,GridSearchCV,train_test_split,learning_curve
 from sklearn.metrics import mean_squared_error as MSE
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import MaxAbsScaler
 import shap
 import pandas as pd
 import numpy as np
@@ -39,9 +41,7 @@ def doSHAP(rf,x_train):
     shap_corrs = []
     shap_values = shap.TreeExplainer(rf).shap_values(x_train)
     shap_imps = np.mean(abs(shap_values),axis=0)
-    shap.summary_plot(shap_values,x_train)
-    shap.dependence_plot("Feature 5",shap_values,x_train)
-    print(plt.gca())
+
     for feature in x_train[0]:
         shap_corrs.append(np.corrcoef(shap_values[:,i],x_train[:,i])[1,0])
         i += 1
@@ -128,10 +128,10 @@ def crossval(x,y,model,strat):
 
     print('%s-fold cross-validation (training data: %s, test data: %s)' % 
         (n_splits,len(train),len(test)))
-    print('R2 score (Training set, CV): %s +- %s' % (score_R2_train,score_R2_train_std))
-    print('R2 score (Test set, CV): %s +- %s' % (score_R2_test,score_R2_test_std))
-    print('RMSE (Training set, CV): %s +- %s eV' % (score_train,score_train_std))
-    print('RMSE (Test set, CV): %s +- %s eV' % (score_test,score_test_std))
+    print('R2 score (Training set): %.4f +- %.4f' % (score_R2_train,score_R2_train_std))
+    print('R2 score (Test set): %.4f +- %.4f' % (score_R2_test,score_R2_test_std))
+    print('RMSE (Training set): %.4f +- %.4f eV' % (score_train,score_train_std))
+    print('RMSE (Test set): %.4f +- %.4f eV' % (score_test,score_test_std))
 
     return y[train],y_pred_train,y[test],y_pred_test,shap_i,shap_c
 
@@ -194,42 +194,43 @@ def main():
     print("Data types in dataframe:")
     print(data.dtypes)
 
-    # Select the features
-    featureNames=np.array(['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','chir','qad',
-        'muad','Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp'])
+    print('Finished reading data, length of data: %s' % len(data))
 
-    nFeatures=len(featureNames)
-    nSamples=len(data) 
-    x=np.zeros((nSamples,nFeatures))
-    i=0
-    for name in featureNames:
-        x[:,i]=data[name].values
-        i+=1
+    # Select features to test
+    featureNames=['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','chir',
+        'qad','muad','Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp']
 
-    # Target variable
+    # Impute missing values with mean
+    imp = SimpleImputer(missing_values=np.nan,strategy='mean').fit(data[pd.Index(featureNames)])
+    data[pd.Index(featureNames)] = imp.transform(data[pd.Index(featureNames)])
+
+    # Describe the data before scaling
+    line()
+    print('Metadata:')
+    print(data.describe())
+
+    # Scale by maximum absolute values
+    transf = MaxAbsScaler().fit(data[data.columns.drop('Ead')])
+    data[pd.Index(featureNames)] = transf.transform(data[pd.Index(featureNames)])
+
+    # Get matrix of features and target variable vector
+    x=data[pd.Index(featureNames)].values
     y=data['Ead'].values
 
     # Stratify based on adsorption energies for balanced train-test splits
     strat=np.around(y)
-
-    print('Finished reading data, length of data: %s' % len(data))
-
-    # Describe the data
-    line()
-    print('Metadata:')
-    print(data.describe())
 
     # Search best parameters for n_estimators, max_features and quit?
     if(GS):
         gridsearch(x,y,strat)
         quit()
 
-    # Predicting numerical values - Regression model with Random Forest
+    # Predicting numerical values - Random forest regression model
     # Train and test
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-    rf = RandomForestRegressor(n_estimators=50, max_features=10,
+    rf = RandomForestRegressor(n_estimators=200, max_features=10,
         oob_score=True,random_state=rnd)
 
     # Cross-validation
@@ -252,6 +253,7 @@ def main():
         plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores)
 
 if __name__ == '__main__':
+    rnd = 12
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)
@@ -267,7 +269,6 @@ if __name__ == '__main__':
     parser.add_argument('-l','--lcurve',action='store_true',help='Plot learning curve')
     parser.add_argument('-g','--gridsearch',action='store_true',help='Do hyperparameter gridsearch')
     args = vars(parser.parse_args())
-    rnd = 123
     SHAP = args['shap']
     Plot = args['plot']
     LC = args['lcurve']

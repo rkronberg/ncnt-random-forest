@@ -56,32 +56,36 @@ def main():
 
     # Preparations
 
+    print('Launching script for parsing features from CP2K output and .xyz coordinate files...')
+    print('Rather ad hoc, proceed with caution and check the data!\n')
+    print('Processing...')
+
     Ead = []        # Adsorption energy
     cV = []         # Concentration of vacancies
     cN = []         # Concentration of nitrogen dopants
     cH = []         # Concentration of hydrogens
-    Zsite = []      # Atomic number of adsorption site
+    Z = []          # Atomic number of adsorption site
     rmsd = []       # RMSD of atomic positions during geoopt
     rmaxsd = []     # Root maximum squared displacement of at. pos.
-    dmin = []       # Distance from adsorption site to closest N
-    dave = []       # Average distance from adsorption site to all N
-    dminH = []      # Distance from adsorption site to closest occupied site
-    daveH = []      # Average distance from adsorption site to all occupied sites
+    dminNS = []     # Distance from adsorption site to closest N
+    daveNS = []     # Average distance from adsorption site to all N
+    dminHS = []     # Distance from adsorption site to closest occupied site
+    daveHS = []     # Average distance from adsorption site to all occupied sites
     mult = []       # Nanotube multiplicity
     chir = []       # Nanotube type (0 = zigzag, 1 armchair)
     Egap = []       # HOMO-LUMO gap
-    muad = []       # Spin moment on adsorption site
-    qad = []        # Partial charge on adsorption site
+    mu = []         # Spin moment on adsorption site
+    q = []          # Partial charge on adsorption site
     CNN = []        # Coordination number (CN) of closest N
     dCNN = []       # Change in N CN during geoopt
-    CNad = []       # CN of adsorption site
-    dCNad = []      # Change in adsorption site CN
-    aminad = []     # Smallest angle at the adsorption site
-    amaxad = []     # Largest angle at the adsorption site
+    CNS = []       # CN of adsorption site
+    dCNS = []      # Change in adsorption site CN
+    aminS = []     # Smallest angle at the adsorption site
+    amaxS = []     # Largest angle at the adsorption site
     aminN = []      # Smallest C-N-C angle
     amaxN = []      # Largest C-N-C angle
-    angdispN = []    # Angular displacement of the adsorption site wrt. closest dopant
-    angdispH = []    # Angular displacement of the adsorption site wrt. closest occupied site
+    angdispN = []   # Angular displacement of the adsorption site wrt. closest dopant
+    angdispH = []   # Angular displacement of the adsorption site wrt. closest occupied site
 
     # Get H2 energy
     str1 = "grep 'ENERGY|' ../refs/H2/h2-geoopt.out | tail -1 | awk '{print $9}'"
@@ -141,31 +145,29 @@ def main():
             ###########################################################################
 
             # Get atom indices
-            site = nl[1][-1]                                # Adsorption site, ensure H index -1
-            nitro = np.where(xyz.symbols == 'N')[0]         # Nitrogen site(s)
-            hydro = np.where(refopt.symbols == 'H')[0]      # Previous hydrogens
-            occupied = nlref[1][np.where(nlref[0]==hydro)]  # Occupied sites
-            nitroNN = nlref[1][np.where(nlref[0]==nitro)]   # Nitrogen nearest neighbors
-            siteNN = nlref[1][np.where(nlref[0]==site)]     # Ads. site nearest neighbors
+            site = nl[1][-1]                                 # Adsorption site, ensure H index -1
+            nitro = np.where(xyz.symbols == 'N')[0]          # Nitrogen site(s)
+            hydro = np.where(refopt.symbols == 'H')[0]       # Previous hydrogens
+            siteNN = nlref[1][np.where(nlref[0]==site)]      # Ads. site nearest neighbors
 
-            # Skip some extra sites
-            #if refopt[site].position[0] < 0:
-            #    continue
-
-            dNad = []
+            dNS = []
             for N in nitro:
-                dNad.append(cylDist(refopt,site,N))
+                dNS.append(cylDist(refopt,site,N))
+            nearN = nitro[np.where(dNS == np.amin(dNS))][0]  # N closest to ads. site
+            nearNNN = nlref[1][np.where(nlref[0]==nearN)]    # Nearest neighbors of closest N
 
-            dHad = []
-            for occ in occupied:
-                dHad.append(cylDist(refopt,site,occ))
-
-            nearN = nitro[np.where(dNad == np.amin(dNad))][0]       # N closest to ads. site
-            try:
-                nearH = occupied[np.where(dHad == np.amin(dHad))][0]    # Occupied site closest to ads. site
-            except ValueError:
+            dHS = []
+            if len(hydro) != 0:
+                occupied = nlref[1][np.where(nlref[0]==hydro)]  # Occupied sites
+                for occ in occupied:
+                    dHS.append(cylDist(refopt,site,occ))
+                nearH = occupied[np.where(dHS == np.amin(dHS))][0]    # Occupied site closest to ads. site
+            else:
                 nearH = np.nan
-            nearNNN = nlref[1][np.where(nlref[0]==nearN)]           # Nearest neighbors of closest N
+
+            # Skip some extra sites and duplicates
+            if refopt[site].position[0] < 0 or site == nearH:
+                continue
 
             ###########################################################################
 
@@ -175,13 +177,13 @@ def main():
             str4 = "grep ' %s       %s' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $8}'" % (site+1,
                 xyz.symbols[site], d)
             nac = float(subprocess.check_output(str4,shell=True))
-            qad.append(nac)
+            q.append(nac)
 
             # Spin moment on adsorption site
             str5 = "grep ' %s       %s' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $7}'" % (site+1,
                 xyz.symbols[site], d)
             spin = float(subprocess.check_output(str5,shell=True))
-            muad.append(spin)
+            mu.append(spin)
 
             # Band gap
             str6 = "grep 'LUMO gap' ../refs/%s/ncnt-geoopt.out | tail -2 | awk '{print $7}' | sort -n | head -1" % d
@@ -193,7 +195,7 @@ def main():
             cN.append(float(len(nitro))/float(len(ref))*100)
             cV.append((224-len(ref))/224.*100)
             cH.append(float(len(hydro))/float(len(refopt)-len(hydro))*100)
-            Zsite.append(int(xyz.get_atomic_numbers()[site]))
+            Z.append(int(xyz.get_atomic_numbers()[site]))
             mult.append(int(2*(len(nitro)%2)/2.+1))
 
             # CNT type (zigzag or armchair)  
@@ -205,37 +207,40 @@ def main():
             # Coordination numbers and relaxation induced changes in CN
             CNN.append(int(np.bincount(nlref[0])[nearN]))
             dCNN.append(int(np.bincount(nl[0])[nearN])-CNN[-1])
-            CNad.append(int(np.bincount(nlref[0])[site]))
-            dCNad.append(int(np.bincount(nl[0])[site])-CNad[-1])
+            CNS.append(int(np.bincount(nlref[0])[site]))
+            dCNS.append(int(np.bincount(nl[0])[site])-CNS[-1])
 
             # Mean and max displacement of atoms during relaxation  
             rmsd.append(np.sqrt(np.mean((xyz.get_positions()[:-1]-refopt.get_positions())**2)))
             rmaxsd.append(np.sqrt(np.amax((xyz.get_positions()[:-1]-refopt.get_positions())**2)))
 
             # Minimum and average distance to dopants
-            dmin.append(np.amin(dNad))
-            dave.append(np.mean(dNad))
+            dminNS.append(np.amin(dNS))
+            daveNS.append(np.mean(dNS))
 
             # Minimum and average distance to occupied sites
             if np.isnan(nearH):
-                dminH.append(np.nan)
-                daveH.append(np.nan)
+                dminHS.append(np.nan)
+                daveHS.append(np.nan)
             else:
-                dminH.append(np.amin(dHad))
-                daveH.append(np.mean(dHad))
+                dminHS.append(np.amin(dHS))
+                daveHS.append(np.mean(dHS))
 
             # Angular displacement
             zaxis = (0,0,1)
-            NAvec = refopt[site].position-refopt[nearN].position
-            A = np.arccos(np.dot(NAvec,zaxis)/np.linalg.norm(NAvec))
-            angdispN.append(A)
+            if site == nearN:
+                angdispN.append(np.nan)
+            else:
+                NSvec = refopt[site].position-refopt[nearN].position
+                A = np.arccos(np.dot(NSvec,zaxis)/np.linalg.norm(NSvec))
+                angdispN.append(A)
 
             # Angular displacement
             if np.isnan(nearH):
                 angdispH.append(np.nan)
             else:
-                HAvec = refopt[site].position-refopt[nearH].position
-                A = np.arccos(np.dot(HAvec,zaxis)/np.linalg.norm(HAvec))
+                HSvec = refopt[site].position-refopt[nearH].position
+                A = np.arccos(np.dot(HSvec,zaxis)/np.linalg.norm(HSvec))
                 angdispH.append(A)
 
             # Adsorption and dopant NN angles
@@ -246,11 +251,11 @@ def main():
                 angle.append(refopt.get_angle(siteNNcycl[S-1],site,siteNNcycl[S],mic=True))
                 S+=1
 
-            aminad.append(np.deg2rad(np.amin(angle)))
+            aminS.append(np.deg2rad(np.amin(angle)))
             if len(angle) == 2:
-                amaxad.append(np.deg2rad(360-np.min(angle)))
+                amaxS.append(np.deg2rad(360-np.min(angle)))
             else:
-                amaxad.append(np.deg2rad(np.amax(angle)))
+                amaxS.append(np.deg2rad(np.amax(angle)))
 
             angle=[]
             NNNcycl = np.append(nearNNN,nearNNN[0])
@@ -268,8 +273,8 @@ def main():
             ###########################################################################
 
     np.savetxt('masterdata.dat',
-        np.c_[Ead,cV,cN,cH,Zsite,rmsd,rmaxsd,dmin,dave,dminH,daveH,mult,chir,qad,muad,Egap,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdispN,angdispH],
-        header='Ead,cV,cN,cH,Zsite,rmsd,rmaxsd,dmin,dave,dminH,daveH,mult,chir,qad,muad,Egap,CNN,dCNN,CNad,dCNad,aminad,amaxad,aminN,amaxN,angdispN,angdispH',
+        np.c_[Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,CNN,dCNN,CNS,dCNS,aminS,amaxS,aminN,amaxN,angdispN,angdispH],
+        header='Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,CNN,dCNN,CNS,dCNS,aminS,amaxS,aminN,amaxN,angdispN,angdispH',
         fmt='%8.3f,%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%4i,%4i,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f',
         delimiter=',',comments='')
 

@@ -198,8 +198,8 @@ def main():
     print('Finished reading data, length of data: %s' % len(data))
 
     # Select features to test
-    featureNames=['cV','cN','cH','Zsite','rmsd','rmaxsd','dmin','dave','dminH','daveH','mult','chir','qad',
-    'muad','Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdispN','angdispH']
+    featureNames=['cV','cN','cH','Z','rmsd','rmaxsd','dminNS','daveNS','dminHS','daveHS','mult','chir','q',
+    'mu','Egap','CNN','dCNN','CNS','dCNS','aminS','amaxS','aminN','amaxN','angdispN','angdispH']
 
     # Impute missing values with mean
     imp = SimpleImputer(missing_values=np.nan,strategy='mean').fit(data[pd.Index(featureNames)])

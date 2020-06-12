@@ -6,6 +6,7 @@ gridsearch, calculation of SHAP feature importances
 and plotting
 
 author: Rasmus Kronberg
+rasmus.kronberg@aalto.fi
 """
 
 # Load necessary packages
@@ -197,8 +198,8 @@ def main():
     print('Finished reading data, length of data: %s' % len(data))
 
     # Select features to test
-    featureNames=['cV','cN','Zsite','rmsd','rmaxsd','dmin','dave','mult','chir',
-        'qad','muad','Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdisp']
+    featureNames=['cV','cN','cH','Zsite','rmsd','rmaxsd','dmin','dave','dminH','daveH','mult','chir','qad',
+    'muad','Egap','CNN','dCNN','CNad','dCNad','aminad','amaxad','aminN','amaxN','angdispN','angdispH']
 
     # Impute missing values with mean
     imp = SimpleImputer(missing_values=np.nan,strategy='mean').fit(data[pd.Index(featureNames)])
@@ -253,7 +254,7 @@ def main():
         plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores)
 
 if __name__ == '__main__':
-    rnd = 12
+    rnd = 123
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)

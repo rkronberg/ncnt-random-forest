@@ -107,7 +107,7 @@ def main():
     ###########################################################################
 
     # Loop over the different nanotubes in dirs
-    for d in tqdm(dirs, ascii=True):
+    for d in tqdm(dirs,ncols=0):
         # Reference energy (one less hydrogen)
         str2 = "grep 'ENERGY|' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $9}'" % d
         refEner = float(subprocess.check_output(str2,shell=True))
@@ -127,7 +127,7 @@ def main():
         ('N', 'H'): 1.3, ('C', 'C'): 1.85, ('C', 'N'): 1.85})
 
         # Loop over each adsorbed state
-        for c in tqdm(np.linspace(0,dirs[d],dirs[d]+1,dtype=int), ascii=True):
+        for c in tqdm(range(dirs[d]+1),leave=False,ncols=0):
             str3 = "grep 'ENERGY|' ../adsorbed/%s/ncnt_%s-geoopt.out | tail -1 | awk '{print $9}'" % (d,c)
             convEner = float(subprocess.check_output(str3,shell=True))
 

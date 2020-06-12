@@ -57,7 +57,7 @@ def main():
     # Preparations
 
     print('Launching script for parsing features from CP2K output and .xyz coordinate files...')
-    print('Rather ad hoc, proceed with caution and check the data!\n')
+    print('Rather ad hoc, proceed with caution and check your results!\n')
     print('Processing...')
 
     Ead = []        # Adsorption energy
@@ -76,16 +76,16 @@ def main():
     Egap = []       # HOMO-LUMO gap
     mu = []         # Spin moment on adsorption site
     q = []          # Partial charge on adsorption site
-    CNN = []        # Coordination number (CN) of closest N
-    dCNN = []       # Change in N CN during geoopt
-    CNS = []       # CN of adsorption site
-    dCNS = []      # Change in adsorption site CN
-    aminS = []     # Smallest angle at the adsorption site
-    amaxS = []     # Largest angle at the adsorption site
+    cnN = []        # Coordination number (CN) of closest N
+    dcnN = []       # Change in N CN during geoopt
+    cnS = []        # CN of adsorption site
+    dcnS = []       # Change in adsorption site CN
+    aminS = []      # Smallest angle at the adsorption site
+    amaxS = []      # Largest angle at the adsorption site
     aminN = []      # Smallest C-N-C angle
     amaxN = []      # Largest C-N-C angle
-    angdispN = []   # Angular displacement of the adsorption site wrt. closest dopant
-    angdispH = []   # Angular displacement of the adsorption site wrt. closest occupied site
+    adispN = []     # Angular displacement of the adsorption site wrt. closest dopant
+    adispH = []     # Angular displacement of the adsorption site wrt. closest occupied site
 
     # Get H2 energy
     str1 = "grep 'ENERGY|' ../refs/H2/h2-geoopt.out | tail -1 | awk '{print $9}'"
@@ -107,7 +107,7 @@ def main():
     ###########################################################################
 
     # Loop over the different nanotubes in dirs
-    for d in tqdm(dirs,ncols=0):
+    for d in tqdm(dirs):
         # Reference energy (one less hydrogen)
         str2 = "grep 'ENERGY|' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $9}'" % d
         refEner = float(subprocess.check_output(str2,shell=True))
@@ -127,7 +127,7 @@ def main():
         ('N', 'H'): 1.3, ('C', 'C'): 1.85, ('C', 'N'): 1.85})
 
         # Loop over each adsorbed state
-        for c in tqdm(range(dirs[d]+1),leave=False,ncols=0):
+        for c in tqdm(range(dirs[d]+1),leave=False):
             str3 = "grep 'ENERGY|' ../adsorbed/%s/ncnt_%s-geoopt.out | tail -1 | awk '{print $9}'" % (d,c)
             convEner = float(subprocess.check_output(str3,shell=True))
 
@@ -205,10 +205,10 @@ def main():
                 chir.append(np.arctan(np.sqrt(3)*8/(2*8+8)))
 
             # Coordination numbers and relaxation induced changes in CN
-            CNN.append(int(np.bincount(nlref[0])[nearN]))
-            dCNN.append(int(np.bincount(nl[0])[nearN])-CNN[-1])
-            CNS.append(int(np.bincount(nlref[0])[site]))
-            dCNS.append(int(np.bincount(nl[0])[site])-CNS[-1])
+            cnN.append(int(np.bincount(nlref[0])[nearN]))
+            dcnN.append(int(np.bincount(nl[0])[nearN])-cnN[-1])
+            cnS.append(int(np.bincount(nlref[0])[site]))
+            dcnS.append(int(np.bincount(nl[0])[site])-cnS[-1])
 
             # Mean and max displacement of atoms during relaxation  
             rmsd.append(np.sqrt(np.mean((xyz.get_positions()[:-1]-refopt.get_positions())**2)))
@@ -229,19 +229,19 @@ def main():
             # Angular displacement
             zaxis = (0,0,1)
             if site == nearN:
-                angdispN.append(np.nan)
+                adispN.append(np.nan)
             else:
                 NSvec = refopt[site].position-refopt[nearN].position
                 A = np.arccos(np.dot(NSvec,zaxis)/np.linalg.norm(NSvec))
-                angdispN.append(A)
+                adispN.append(A)
 
             # Angular displacement
             if np.isnan(nearH):
-                angdispH.append(np.nan)
+                adispH.append(np.nan)
             else:
                 HSvec = refopt[site].position-refopt[nearH].position
                 A = np.arccos(np.dot(HSvec,zaxis)/np.linalg.norm(HSvec))
-                angdispH.append(A)
+                adispH.append(A)
 
             # Adsorption and dopant NN angles
             angle=[]
@@ -273,8 +273,8 @@ def main():
             ###########################################################################
 
     np.savetxt('masterdata.dat',
-        np.c_[Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,CNN,dCNN,CNS,dCNS,aminS,amaxS,aminN,amaxN,angdispN,angdispH],
-        header='Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,CNN,dCNN,CNS,dCNS,aminS,amaxS,aminN,amaxN,angdispN,angdispH',
+        np.c_[Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,cnN,dcnN,cnS,dcnS,aminS,amaxS,aminN,amaxN,adispN,adispH],
+        header='Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,cnN,dcnN,cnS,dcnS,aminS,amaxS,aminN,amaxN,adispN,adispH',
         fmt='%8.3f,%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%4i,%4i,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f',
         delimiter=',',comments='')
 

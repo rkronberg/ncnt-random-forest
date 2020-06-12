@@ -59,12 +59,13 @@ def plotSHAP(shap_i,shap_c,featureNames):
     shap_std = np.std(shap_i,axis=0,ddof=1)
     ind_shap = np.argsort(shap_ave)
     
-    featureSym=[r'$x_\mathrm{V}$',r'$x_\mathrm{N}$',r'$Z$',r'RMSD',r'RMaxSD',r'$\min\{d\}$',
-    r'$\langle d\rangle$',r'$M$',r'Type',r'$q_\mathrm{ad}$',r'$\mu_\mathrm{ad}$',r'$E_g$',
-    r'$\mathrm{CN}_\mathrm{N}$',r'$\Delta\mathrm{CN}_\mathrm{N}$',r'$\mathrm{CN}_\mathrm{ad}$',
-    r'$\Delta\mathrm{CN}_\mathrm{ad}$',r'$\min\{\theta_\mathrm{ad}\}$',
-    r'$\max\{\theta_\mathrm{ad}\}$',r'$\min\{\theta_\mathrm{N}\}$',r'$\max\{\theta_\mathrm{N}\}$',
-    r'$\cos\alpha_\mathrm{disp}$']
+    featureSym=[r'$x_\mathrm{V}$',r'$x_\mathrm{N}$',r'$x_\mathrm{H}$',r'$Z$',r'RMSD',r'RmaxSD',
+    r'$\min\{d_\mathrm{NS}\}$',r'$\langle d_\mathrm{NS}\rangle$',r'$\min\{d_\mathrm{HS}\}$',
+    r'$\langle d_\mathrm{HS}\rangle$',r'$M$',r'$\chi$',r'$q$',r'$\mu$',r'$E_g$',
+    r'$\mathrm{CN}_\mathrm{N}$',r'$\Delta\mathrm{CN}_\mathrm{N}$',r'$\mathrm{CN}_\mathrm{S}$',
+    r'$\Delta\mathrm{CN}_\mathrm{S}$',r'$\min\{\varphi_\mathrm{S}\}$',r'$\max\{\varphi_\mathrm{S}\}$',
+    r'$\min\{\varphi_\mathrm{N}\}$',r'$\max\{\varphi_\mathrm{N}\}$',r'$\alpha_\mathrm{N}$',
+    r'$\alpha_\mathrm{H}$']
 
     print('Feature importances (SHAP, positive or negative correlation):')
     fig,ax=plt.subplots(figsize=(7,6))
@@ -199,7 +200,7 @@ def main():
 
     # Select features to test
     featureNames=['cV','cN','cH','Z','rmsd','rmaxsd','dminNS','daveNS','dminHS','daveHS','mult','chir','q',
-    'mu','Egap','CNN','dCNN','CNS','dCNS','aminS','amaxS','aminN','amaxN','angdispN','angdispH']
+    'mu','Egap','cnN','dcnN','cnS','dcnS','aminS','amaxS','aminN','amaxN','adispN','adispH']
 
     # Impute missing values with mean
     imp = SimpleImputer(missing_values=np.nan,strategy='mean').fit(data[pd.Index(featureNames)])

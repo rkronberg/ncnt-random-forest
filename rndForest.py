@@ -21,7 +21,7 @@ import numpy as np
 import argparse
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpa
-
+import warnings
 
 def lcurve(rf,x,y):
 
@@ -40,7 +40,11 @@ def doSHAP(rf,x_train):
 
     i = 0
     shap_corrs = []
-    shap_values = shap.TreeExplainer(rf).shap_values(x_train)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        shap_values = shap.TreeExplainer(rf).shap_values(x_train)
+
     shap_imps = np.mean(abs(shap_values),axis=0)
 
     for feature in x_train[0]:
@@ -103,7 +107,9 @@ def crossval(x,y,model,strat):
 
     kf = StratifiedKFold(n_splits=n_splits,shuffle=True,random_state=rnd)
 
+    k=1
     for train, test in kf.split(x,strat):
+        print('Cross-validation split %s/%s' % (k,n_splits))
         model.fit(x[train], y[train])
         y_pred_test = model.predict(x[test])
         y_pred_train = model.predict(x[train])
@@ -118,6 +124,8 @@ def crossval(x,y,model,strat):
             shap_i.append(shap_imps)
             shap_c.append(shap_corrs)
 
+        k+=1
+
     score_test = np.mean(error_test)
     score_test_std = np.std(error_test, ddof=1)
     score_train = np.mean(error_train)
@@ -127,6 +135,8 @@ def crossval(x,y,model,strat):
     score_R2_test_std = np.std(error_R2_test, ddof=1)
     score_R2_train = np.mean(error_R2_train)
     score_R2_train_std = np.std(error_R2_train, ddof=1)
+
+    line()
 
     print('%s-fold cross-validation (training data: %s, test data: %s)' % 
         (n_splits,len(train),len(test)))

@@ -57,7 +57,7 @@ def main():
     # Preparations
 
     print('Launching script for parsing features from CP2K output and .xyz coordinate files...')
-    print('Rather ad hoc, proceed with caution and check your results!\n')
+    print('Implementation is very ad hoc, proceed with caution and check your results!\n')
     print('Processing...')
 
     Ead = []        # Adsorption energy
@@ -165,7 +165,7 @@ def main():
             else:
                 nearH = np.nan
 
-            # Skip some extra sites and duplicates
+            # Skip some extra sites and duplicates (adsorption to occupied site)
             if refopt[site].position[0] < 0 or site == nearH:
                 continue
 

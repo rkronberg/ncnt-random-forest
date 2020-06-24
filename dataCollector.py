@@ -57,7 +57,7 @@ def main():
     # Preparations
 
     print('Launching script for parsing features from CP2K output and .xyz coordinate files...')
-    print('Rather ad hoc, proceed with caution and check your results!\n')
+    print('Implementation is very ad hoc, proceed with caution and check your results!\n')
     print('Processing...')
 
     Ead = []        # Adsorption energy
@@ -92,17 +92,55 @@ def main():
     h2Ener = float(subprocess.check_output(str1,shell=True))
 
     # Dictionary of systems and number of hydrogen configurations
-    dirs = {'1N_1H_14x0_graphitic': 119, '1N_1H_14x0_pyridinic': 102, '1N_1H_14x0_pyrrolic_SW_A': 103, 
-    '1N_1H_14x0_pyrrolic_SW_B': 103, '2N_1H_14x0_graphitic': 103, '3N_1H_14x0_pyridinic': 102, 
-    '4N_1H_14x0_pyridinic': 101, '1N_1H_8x8_graphitic': 118, '1N_1H_8x8_pyridinic': 103,
-    '1N_1H_8x8_pyrrolic_SW_A': 104, '2N_1H_8x8_graphitic': 104, '1N_1H_8x8_pyrrolic': 103,
-    '1N_1H_8x8_pyrrolic_SW_B': 104,'3N_1H_8x8_pyridinic': 103,'4N_1H_8x8_pyridinic': 102,
-    '1N_1H_14x0_pyrrolic': 102, '1N_2H_14x0_graphitic': 102, '1N_2H_14x0_pyridinic': 101, 
-    '1N_2H_14x0_pyrrolic_SW_A': 102, '1N_2H_14x0_pyrrolic_SW_B': 102, '2N_2H_14x0_graphitic': 102, 
-    '3N_2H_14x0_pyridinic': 102, '4N_2H_14x0_pyridinic': 101, '1N_2H_8x8_graphitic': 96, 
-    '1N_2H_8x8_pyridinic': 103,'1N_2H_8x8_pyrrolic_SW_A': 103, '2N_2H_8x8_graphitic': 103, 
-    '1N_2H_8x8_pyrrolic': 103,'1N_2H_8x8_pyrrolic_SW_B': 96,'3N_2H_8x8_pyridinic': 103,
-    '1N_2H_14x0_pyrrolic': 102}
+    dirs = {'1N_1H_14x0_graphitic': 119,
+            '1N_1H_14x0_pyridinic': 102,
+            '1N_1H_14x0_pyrrolic': 102,
+            '1N_1H_14x0_pyrrolic_SW_A': 103,
+            '1N_1H_14x0_pyrrolic_SW_B': 103,
+            '2N_1H_14x0_graphitic': 103,
+            '3N_1H_14x0_pyridinic': 102,
+            '4N_1H_14x0_pyridinic': 101,
+            '1N_1H_8x8_graphitic': 118,
+            '1N_1H_8x8_pyridinic': 103,
+            '1N_1H_8x8_pyrrolic': 103,
+            '1N_1H_8x8_pyrrolic_SW_A': 104,
+            '1N_1H_8x8_pyrrolic_SW_B': 104,
+            '2N_1H_8x8_graphitic': 104,
+            '3N_1H_8x8_pyridinic': 103,
+            '4N_1H_8x8_pyridinic': 102,
+            '1N_2H_14x0_graphitic': 102,
+            '1N_2H_14x0_pyridinic': 101,
+            '1N_2H_14x0_pyrrolic': 102,
+            '1N_2H_14x0_pyrrolic_SW_A': 102,
+            '1N_2H_14x0_pyrrolic_SW_B': 102,
+            '2N_2H_14x0_graphitic': 102,
+            '3N_2H_14x0_pyridinic': 102,
+            '4N_2H_14x0_pyridinic': 101,
+            '1N_2H_8x8_graphitic': 96,
+            '1N_2H_8x8_pyridinic': 103,
+            '1N_2H_8x8_pyrrolic': 103,
+            '1N_2H_8x8_pyrrolic_SW_A': 103,
+            '1N_2H_8x8_pyrrolic_SW_B': 96,
+            '2N_2H_8x8_graphitic': 103,
+            '3N_2H_8x8_pyridinic': 103,
+            '4N_2H_8x8_pyridinic': 102,
+            '1N_3H_14x0_graphitic': 101,
+            '1N_3H_14x0_pyridinic': 100,
+            '1N_3H_14x0_pyrrolic': 102,
+            '1N_3H_14x0_pyrrolic_SW_A': 101,
+            '1N_3H_14x0_pyrrolic_SW_B': 101,
+            '2N_3H_14x0_graphitic': 101,
+            '3N_3H_14x0_pyridinic': 102,
+            '4N_3H_14x0_pyridinic': 101,
+            '1N_3H_8x8_graphitic': 95,
+            '1N_3H_8x8_pyridinic': 103,
+            '1N_3H_8x8_pyrrolic': 103,
+            '1N_3H_8x8_pyrrolic_SW_A': 102,
+            '1N_3H_8x8_pyrrolic_SW_B': 95,
+            '2N_3H_8x8_graphitic': 95,
+            '3N_3H_8x8_pyridinic': 103,
+            '4N_3H_8x8_pyridinic': 103
+    }
 
     ###########################################################################
 
@@ -123,13 +161,18 @@ def main():
         refopt.set_pbc([True,True,True])
 
         # Construct neighborlist for optimized reference system
-        nlref = NL('ij',refopt,{('H', 'H'): 1.85, ('C', 'H'): 1.3, 
+        nlref = NL('ij',refopt,{('H', 'H'): 1.4, ('C', 'H'): 1.3, 
         ('N', 'H'): 1.3, ('C', 'C'): 1.85, ('C', 'N'): 1.85})
 
         # Loop over each adsorbed state
         for c in tqdm(range(dirs[d]+1),leave=False):
             str3 = "grep 'ENERGY|' ../adsorbed/%s/ncnt_%s-geoopt.out | tail -1 | awk '{print $9}'" % (d,c)
             convEner = float(subprocess.check_output(str3,shell=True))
+
+            # Calculate adsorption energy, exclude outliers
+            dE = (convEner - refEner - 0.5*h2Ener)*27.21138
+            if abs(dE) > 2.5:
+                continue
 
             xyz = read('../adsorbed/%s/ncnt_%s-geoopt-pos.xyz' % (d,c))
             xyz.set_cell(cell)
@@ -139,16 +182,18 @@ def main():
             xyz.set_pbc([True,True,True])
 
             # Construct neighborlist for adsorbed state
-            nl = NL('ij',xyz,{('H', 'H'): 1.85, ('C', 'H'): 1.3, 
+            nl = NL('ij',xyz,{('H', 'H'): 1.4, ('C', 'H'): 1.3, 
                 ('N', 'H'): 1.3, ('C', 'C'): 1.85, ('C', 'N'): 1.85})
 
             ###########################################################################
 
             # Get atom indices
             site = nl[1][-1]                                 # Adsorption site, ensure H index -1
+            if xyz.symbols[site] == 'H':
+                continue
             nitro = np.where(xyz.symbols == 'N')[0]          # Nitrogen site(s)
             hydro = np.where(refopt.symbols == 'H')[0]       # Previous hydrogens
-            siteNN = nlref[1][np.where(nlref[0]==site)]      # Ads. site nearest neighbors
+            siteNN = nlref[1][np.where(nlref[0] == site)]    # Ads. site nearest neighbors
 
             dNS = []
             for N in nitro:
@@ -157,21 +202,27 @@ def main():
             nearNNN = nlref[1][np.where(nlref[0]==nearN)]    # Nearest neighbors of closest N
 
             dHS = []
+            occupied = []
             if len(hydro) != 0:
-                occupied = nlref[1][np.where(nlref[0]==hydro)]  # Occupied sites
+                for h in hydro:
+                    occupied.append(nlref[1][np.where(nlref[0]==h)])  # Occupied sites  
+                occupied = np.array(occupied).reshape(-1)
                 for occ in occupied:
                     dHS.append(cylDist(refopt,site,occ))
                 nearH = occupied[np.where(dHS == np.amin(dHS))][0]    # Occupied site closest to ads. site
             else:
                 nearH = np.nan
 
-            # Skip some extra sites and duplicates
-            if refopt[site].position[0] < 0 or site == nearH:
+            # Skip some extra sites and duplicates (adsorption to occupied site)
+            if refopt[site].position[0] < 0 or site in occupied:
                 continue
 
             ###########################################################################
 
             # Log simple features
+
+            # Adsorption energy
+            Ead.append(dE)
 
             # Net atomic charge on adsorption site
             str4 = "grep ' %s       %s' ../refs/%s/ncnt-geoopt.out | tail -1 | awk '{print $8}'" % (site+1,
@@ -190,13 +241,13 @@ def main():
             gap = float(subprocess.check_output(str6,shell=True))
             Egap.append(gap)
 
-            # Adsorption energy, dopant/vacancy concentration, site atomic number, multiplicity
-            Ead.append((convEner - refEner - 0.5*h2Ener)*27.21138)
-            cN.append(float(len(nitro))/float(len(ref))*100)
-            cV.append((224-len(ref))/224.*100)
-            cH.append(float(len(hydro))/float(len(refopt)-len(hydro))*100)
+            # Dopant/vacancy concentration, site atomic number, multiplicity
+            cN.append(float(len(nitro))/float(len(ref)-len(hydro))*100)
+            cV.append((224-len(ref)+len(hydro))/224.*100)
+            cH.append(float(len(hydro)+1)/float(len(ref)-len(hydro))*100)
             Z.append(int(xyz.get_atomic_numbers()[site]))
-            mult.append(int(2*(len(nitro)%2)/2.+1))
+            S = (len(nitro)*5+len(hydro))%2/2
+            mult.append(int(2*S+1))
 
             # CNT type (zigzag or armchair)  
             if '14x0' in d:

@@ -92,17 +92,54 @@ def main():
     h2Ener = float(subprocess.check_output(str1,shell=True))
 
     # Dictionary of systems and number of hydrogen configurations
-    dirs = {'1N_1H_14x0_graphitic': 119, '1N_1H_14x0_pyridinic': 102, '1N_1H_14x0_pyrrolic_SW_A': 103, 
-    '1N_1H_14x0_pyrrolic_SW_B': 103, '2N_1H_14x0_graphitic': 103, '3N_1H_14x0_pyridinic': 102, 
-    '4N_1H_14x0_pyridinic': 101, '1N_1H_8x8_graphitic': 118, '1N_1H_8x8_pyridinic': 103,
-    '1N_1H_8x8_pyrrolic_SW_A': 104, '2N_1H_8x8_graphitic': 104, '1N_1H_8x8_pyrrolic': 103,
-    '1N_1H_8x8_pyrrolic_SW_B': 104,'3N_1H_8x8_pyridinic': 103,'4N_1H_8x8_pyridinic': 102,
-    '1N_1H_14x0_pyrrolic': 102, '1N_2H_14x0_graphitic': 102, '1N_2H_14x0_pyridinic': 101, 
-    '1N_2H_14x0_pyrrolic_SW_A': 102, '1N_2H_14x0_pyrrolic_SW_B': 102, '2N_2H_14x0_graphitic': 102, 
-    '3N_2H_14x0_pyridinic': 102, '4N_2H_14x0_pyridinic': 101, '1N_2H_8x8_graphitic': 96, 
-    '1N_2H_8x8_pyridinic': 103,'1N_2H_8x8_pyrrolic_SW_A': 103, '2N_2H_8x8_graphitic': 103, 
-    '1N_2H_8x8_pyrrolic': 103,'1N_2H_8x8_pyrrolic_SW_B': 96,'3N_2H_8x8_pyridinic': 103,
-    '1N_2H_14x0_pyrrolic': 102}
+    dirs = {'1N_1H_14x0_graphitic': 119
+            ,'1N_1H_14x0_pyridinic': 102
+            ,'1N_1H_14x0_pyrrolic': 102
+            ,'1N_1H_14x0_pyrrolic_SW_A': 103
+            ,'1N_1H_14x0_pyrrolic_SW_B': 103
+            ,'2N_1H_14x0_graphitic': 103
+            ,'3N_1H_14x0_pyridinic': 102
+            ,'4N_1H_14x0_pyridinic': 101
+            ,'1N_1H_8x8_graphitic': 118
+            ,'1N_1H_8x8_pyridinic': 103
+            ,'1N_1H_8x8_pyrrolic': 103
+            ,'1N_1H_8x8_pyrrolic_SW_A': 104
+            ,'1N_1H_8x8_pyrrolic_SW_B': 104
+            ,'2N_1H_8x8_graphitic': 104
+            ,'3N_1H_8x8_pyridinic': 103
+            ,'4N_1H_8x8_pyridinic': 102
+            ,'1N_2H_14x0_graphitic': 102
+            ,'1N_2H_14x0_pyridinic': 101
+            ,'1N_2H_14x0_pyrrolic': 102
+            ,'1N_2H_14x0_pyrrolic_SW_A': 102
+            ,'1N_2H_14x0_pyrrolic_SW_B': 102
+            ,'2N_2H_14x0_graphitic': 102
+            ,'3N_2H_14x0_pyridinic': 102
+            ,'4N_2H_14x0_pyridinic': 101
+            ,'1N_2H_8x8_graphitic': 96
+            ,'1N_2H_8x8_pyridinic': 103
+            ,'1N_2H_8x8_pyrrolic': 103
+            ,'1N_2H_8x8_pyrrolic_SW_A': 103
+            ,'1N_2H_8x8_pyrrolic_SW_B': 96
+            ,'2N_2H_8x8_graphitic': 103
+            ,'3N_2H_8x8_pyridinic': 103
+            ,'4N_2H_8x8_pyridinic': 102
+            # ,'1N_3H_14x0_graphitic': 101
+            # ,'1N_3H_14x0_pyridinic': 100
+            # ,'1N_3H_14x0_pyrrolic': 102
+            # ,'1N_3H_14x0_pyrrolic_SW_A': 101
+            # ,'1N_3H_14x0_pyrrolic_SW_B': 101
+            # ,'2N_3H_14x0_graphitic': 101
+            # ,'3N_3H_14x0_pyridinic': 102
+            # ,'4N_3H_14x0_pyridinic': 101
+            # ,'1N_3H_8x8_graphitic': 95
+            # ,'1N_3H_8x8_pyridinic': 103
+            # ,'1N_3H_8x8_pyrrolic': 103
+            # ,'1N_3H_8x8_pyrrolic_SW_A': 102
+            # ,'1N_3H_8x8_pyrrolic_SW_B': 95
+            # ,'2N_3H_8x8_graphitic': 95
+            # ,'3N_3H_8x8_pyridinic': 103
+    }
 
     ###########################################################################
 
@@ -158,7 +195,10 @@ def main():
 
             dHS = []
             if len(hydro) != 0:
-                occupied = nlref[1][np.where(nlref[0]==hydro)]  # Occupied sites
+                occupied = []
+                for h in hydro:
+                    occupied.append(nlref[1][np.where(nlref[0]==h)])  # Occupied sites
+                occupied = np.array(occupied).reshape(-1)
                 for occ in occupied:
                     dHS.append(cylDist(refopt,site,occ))
                 nearH = occupied[np.where(dHS == np.amin(dHS))][0]    # Occupied site closest to ads. site

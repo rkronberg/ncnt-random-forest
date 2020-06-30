@@ -22,14 +22,17 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpa
 import warnings
 
-def lcurve(rf,x,y):
+def lcurve(rf,x,y,strat):
 
     # Function for calculating learning curve (10-CV)
 
-    train_sizes,train_scores,test_scores = learning_curve(rf,x,y,cv=10,
-        train_sizes=np.linspace(0.1,1,9),shuffle=True,random_state=rnd)
+    n_splits = 10
+    kf = StratifiedKFold(n_splits=n_splits,shuffle=True,random_state=rnd)
 
-    return train_sizes, train_scores
+    train_sizes,train_scores,test_scores = learning_curve(rf,x,y,cv=kf.split(x,strat),
+        train_sizes=np.linspace(0.1,1,9),shuffle=True,random_state=rnd,n_jobs=-1)
+
+    return train_sizes, train_scores, test_scores
 
 
 def doSHAP(rf,x_train):
@@ -155,12 +158,12 @@ def gridsearch(x,y,strat):
         stratify=strat,shuffle=True,random_state=rnd)
     rf=GridSearchCV(RandomForestRegressor(oob_score=True,random_state=rnd),cv=10,
         param_grid={"n_estimators": np.linspace(100,500,5,dtype=int),
-        "max_features": np.linspace(1,len(x[0,:]),len(x[0,:])+1,dtype=int)})
+        "max_features": np.linspace(1,len(x[0,:]),len(x[0,:])+1,dtype=int)},n_jobs=-1)
     rf.fit(x_train,y_train)
     print('Best parameters from gridsearch: %s' % rf.best_params_)
 
 
-def plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores):
+def plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores,test_scores):
 
     # Function for plotting predictions vs. DFT data and learning curve
 
@@ -179,15 +182,26 @@ def plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores):
     plt.legend(frameon=False,handletextpad=0.1,loc='upper left')
 
     if(LC):
-        ax2 = fig.add_axes([0.58, 0.22, 0.28, 0.26])
-        ax2.plot(train_sizes,np.mean(train_scores,axis=1),'k-')
-        ax2.errorbar(train_sizes,np.mean(train_scores,axis=1),
-            yerr=np.std(train_scores,axis=1,ddof=1),fmt='ko',capsize=4)
+        train_mean = np.mean(train_scores,axis=1)
+        test_mean = np.mean(test_scores,axis=1)
+        train_std = np.std(train_scores,axis=1,ddof=1)
+        test_std = np.std(test_scores,axis=1,ddof=1)
+
+        ax2 = fig.add_axes([0.60, 0.22, 0.27, 0.26])
+        ax2.plot(train_sizes,train_mean,'C9o-',fillstyle='none',lw=1.5,
+            markeredgewidth=1.5)
+        ax2.plot(train_sizes,test_mean,'C3x-',lw=1.5,markeredgewidth=1.5)
+        ax2.fill_between(train_sizes,train_mean - train_std,
+            train_mean + train_std,alpha=0.2,color='C9',lw=0)
+        ax2.fill_between(train_sizes,test_mean - test_std,
+            test_mean + test_std,alpha=0.2,color='C3',lw=0)
         ax2.minorticks_on()
-        ax2.tick_params(which='both',direction='in',top=True,right=True,labelsize=14)
+        ax2.tick_params(which='both',direction='in',top=True,right=True,
+            labelsize=14)
         ax2.set_xlabel(r'Training set size',fontsize=14)
         ax2.set_ylabel(r'$R^2$',fontsize=14)
-        ax2.set_yticks([0.92,0.94,0.96,0.98])
+        ax2.set_xticks([1000,2000,3000,4000])
+        ax2.set_xticklabels(['1k','2k','3k','4k'])
         ax2.xaxis.set_label_coords(0.5,-0.15)
 
     plt.show()
@@ -207,19 +221,19 @@ def main():
 
     print('Finished reading data, length of data: %s' % len(data))
 
-    # Replace missing values with -999
-    data = data.apply(pd.to_numeric, errors='coerce').fillna(-999, downcast='infer')
+    # Replace missing values with -1
+    data = data.apply(pd.to_numeric, errors='coerce').fillna(-1, downcast='infer')
+
+    # Select features to test
+    featureNames=['cV','cN','cH','Z','rmsd','rmaxsd','dminNS','daveNS','dminHS','daveHS','mult','chir','q',
+    'mu','Egap','cnN','dcnN','cnS','dcnS','aminS','amaxS','aminN','amaxN','adispN','adispH']
 
     # Describe the data before scaling
     line()
     print('Metadata:')
     print(data.describe())
 
-    # Select features to test
-    featureNames=['cV','cN','cH','Z','rmsd','rmaxsd','dminNS','daveNS','dminHS','daveHS','mult','chir','q',
-    'mu','Egap','cnN','dcnN','cnS','dcnS','aminS','amaxS','aminN','amaxN','adispN','adispH']
-
-    # Scale by maximum absolute values
+    # Scale features by maximum absolute values
     transf = MaxAbsScaler().fit(data[data.columns.drop('Ead')])
     data[pd.Index(featureNames)] = transf.transform(data[pd.Index(featureNames)])
 
@@ -241,7 +255,7 @@ def main():
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
     rf = RandomForestRegressor(n_estimators=200, max_features=10,
-        oob_score=True,random_state=rnd)
+        oob_score=True,random_state=rnd,n_jobs=-1)
 
     # Cross-validation
     y_train,y_pred_train,y_test,y_pred_test,shap_i,shap_c = crossval(x,y,rf,strat)
@@ -249,7 +263,7 @@ def main():
     # Learning curve
     (train_sizes,train_scores) = (0,0)
     if(LC):
-        train_sizes, train_scores = lcurve(rf,x,y)
+        train_sizes, train_scores, test_scores = lcurve(rf,x,y,strat)
 
     # Plot SHAP importances
     if(SHAP):
@@ -260,10 +274,10 @@ def main():
 
     # Plot predictions vs. DFT data and learning curve if chosen
     if(Plot):
-        plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores)
+        plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores,test_scores)
 
 if __name__ == '__main__':
-    rnd = 123
+    rnd = 111
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)

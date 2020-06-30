@@ -11,7 +11,7 @@ rasmus.kronberg@aalto.fi
 
 # Load necessary packages
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import StratifiedKFold,GridSearchCV,train_test_split,learning_curve
+from sklearn.model_selection import StratifiedKFold,RandomizedSearchCV,train_test_split,learning_curve
 from sklearn.metrics import mean_squared_error as MSE
 from sklearn.preprocessing import MaxAbsScaler
 import shap
@@ -29,8 +29,12 @@ def lcurve(rf,x,y,strat):
     n_splits = 10
     kf = StratifiedKFold(n_splits=n_splits,shuffle=True,random_state=rnd)
 
+    print('Generating learning curve... ',end='')
+
     train_sizes,train_scores,test_scores = learning_curve(rf,x,y,cv=kf.split(x,strat),
         train_sizes=np.linspace(0.1,1,9),shuffle=True,random_state=rnd,n_jobs=-1)
+
+    print('Done!')
 
     return train_sizes, train_scores, test_scores
 
@@ -150,17 +154,22 @@ def crossval(x,y,model,strat):
     return y[train],y_pred_train,y[test],y_pred_test,shap_i,shap_c
 
 
-def gridsearch(x,y,strat):
+def rndsearch(x,y,strat):
 
-    # Function for performing hyperparameter grid search
+    # Function for performing randomized hyperparameter search
+
+    print('Performing randomized search of optimal hyperparameters... ', end='')
+
+    estimator = RandomForestRegressor(oob_score=True,random_state=rnd)
+    dists = dict(n_estimators=np.arange(100,600,100),
+        max_features=np.arange(8,13))
 
     x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.1,
         stratify=strat,shuffle=True,random_state=rnd)
-    rf=GridSearchCV(RandomForestRegressor(oob_score=True,random_state=rnd),cv=10,
-        param_grid={"n_estimators": np.linspace(100,500,5,dtype=int),
-        "max_features": np.linspace(1,len(x[0,:]),len(x[0,:])+1,dtype=int)},n_jobs=-1)
-    rf.fit(x_train,y_train)
-    print('Best parameters from gridsearch: %s' % rf.best_params_)
+    rf=RandomizedSearchCV(estimator,dists,n_iter=20,cv=10,random_state=rnd,n_jobs=-1)
+    srch = rf.fit(x_train,y_train)
+    print('Done!')
+    print('Best parameters: %s' % srch.best_params_)
 
 
 def plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores,test_scores):
@@ -245,8 +254,9 @@ def main():
     strat=np.around(y)
 
     # Search best parameters for n_estimators, max_features and quit?
-    if(GS):
-        gridsearch(x,y,strat)
+    if(RS):
+        line()
+        rndsearch(x,y,strat)
         quit()
 
     # Predicting numerical values - Random forest regression model
@@ -254,15 +264,16 @@ def main():
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-    rf = RandomForestRegressor(n_estimators=200, max_features=10,
+    rf = RandomForestRegressor(n_estimators=500, max_features=9,
         oob_score=True,random_state=rnd,n_jobs=-1)
 
     # Cross-validation
     y_train,y_pred_train,y_test,y_pred_test,shap_i,shap_c = crossval(x,y,rf,strat)
 
     # Learning curve
-    (train_sizes,train_scores) = (0,0)
+    (train_sizes,train_scores,test_scores) = (0,0,0)
     if(LC):
+        line()
         train_sizes, train_scores, test_scores = lcurve(rf,x,y,strat)
 
     # Plot SHAP importances
@@ -273,11 +284,11 @@ def main():
     line()
 
     # Plot predictions vs. DFT data and learning curve if chosen
-    if(Plot):
+    if(PLOT):
         plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores,test_scores)
 
 if __name__ == '__main__':
-    rnd = 111
+    rnd = 123
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)
@@ -291,10 +302,10 @@ if __name__ == '__main__':
     parser.add_argument('-s','--shap',action='store_true',help='Do SHAP analysis')
     parser.add_argument('-p','--plot',action='store_true',help='Plot predictions vs. DFT data')
     parser.add_argument('-l','--lcurve',action='store_true',help='Plot learning curve')
-    parser.add_argument('-g','--gridsearch',action='store_true',help='Do hyperparameter gridsearch')
+    parser.add_argument('-r','--rndsearch',action='store_true',help='Do randomized hyperparameter search')
     args = vars(parser.parse_args())
     SHAP = args['shap']
-    Plot = args['plot']
+    PLOT = args['plot']
     LC = args['lcurve']
-    GS = args['gridsearch']
+    RS = args['rndsearch']
     main()

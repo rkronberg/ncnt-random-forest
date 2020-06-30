@@ -265,7 +265,7 @@ def main():
         plot(y,y_train,y_pred_train,y_test,y_pred_test,train_sizes,train_scores)
 
 if __name__ == '__main__':
-    rnd = 123
+    rnd = 111
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif', size=24)
     plt.rc('axes', linewidth=2)

@@ -246,7 +246,8 @@ def main():
             cV.append((224-len(ref)+len(hydro))/224.*100)
             cH.append(float(len(hydro)+1)/float(len(ref)-len(hydro))*100)
             Z.append(int(xyz.get_atomic_numbers()[site]))
-            mult.append(int(2*(len(nitro)%2)/2.+1))
+            S = (len(nitro)*5+len(hydro))%2/2
+            mult.append(int(2*S+1))
 
             # CNT type (zigzag or armchair)  
             if '14x0' in d:

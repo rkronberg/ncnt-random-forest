@@ -267,7 +267,10 @@ def main():
 
             # Minimum and average distance to dopants
             dminNS.append(np.amin(dNS))
-            daveNS.append(np.mean(dNS))
+            if len(nitro) > 1:
+                daveNS.append(np.mean(dNS))
+            else:
+                daveNS.append(np.nan)
 
             # Minimum and average distance to occupied sites
             if np.isnan(nearH):

@@ -13,7 +13,6 @@ rasmus.kronberg@aalto.fi
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import StratifiedKFold,GridSearchCV,train_test_split,learning_curve
 from sklearn.metrics import mean_squared_error as MSE
-from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import MaxAbsScaler
 import shap
 import pandas as pd
@@ -208,18 +207,17 @@ def main():
 
     print('Finished reading data, length of data: %s' % len(data))
 
-    # Select features to test
-    featureNames=['cV','cN','cH','Z','rmsd','rmaxsd','dminNS','daveNS','dminHS','daveHS','mult','chir','q',
-    'mu','Egap','cnN','dcnN','cnS','dcnS','aminS','amaxS','aminN','amaxN','adispN','adispH']
-
-    # Impute missing values with mean
-    imp = SimpleImputer(missing_values=np.nan,strategy='mean').fit(data[pd.Index(featureNames)])
-    data[pd.Index(featureNames)] = imp.transform(data[pd.Index(featureNames)])
+    # Replace missing values with -999
+    data = data.apply(pd.to_numeric, errors='coerce').fillna(-999, downcast='infer')
 
     # Describe the data before scaling
     line()
     print('Metadata:')
     print(data.describe())
+
+    # Select features to test
+    featureNames=['cV','cN','cH','Z','rmsd','rmaxsd','dminNS','daveNS','dminHS','daveHS','mult','chir','q',
+    'mu','Egap','cnN','dcnN','cnS','dcnS','aminS','amaxS','aminN','amaxN','adispN','adispH']
 
     # Scale by maximum absolute values
     transf = MaxAbsScaler().fit(data[data.columns.drop('Ead')])

@@ -66,26 +66,26 @@ def main():
     cH = []         # Concentration of hydrogens
     Z = []          # Atomic number of adsorption site
     rmsd = []       # RMSD of atomic positions during geoopt
-    rmaxsd = []     # Root maximum squared displacement of at. pos.
-    dminNS = []     # Distance from adsorption site to closest N
+    rmaxsd = []     # Root maximum squared displacement of atomic positions
+    dminNS = []     # Distance from adsorption site S to closest N
     daveNS = []     # Average distance from adsorption site to all N
     dminHS = []     # Distance from adsorption site to closest occupied site
     daveHS = []     # Average distance from adsorption site to all occupied sites
     mult = []       # Nanotube multiplicity
-    chir = []       # Nanotube type (0 = zigzag, 1 armchair)
+    chir = []       # Nanotube chiral angle
     Egap = []       # HOMO-LUMO gap
-    mu = []         # Spin moment on adsorption site
-    q = []          # Partial charge on adsorption site
+    mu = []         # Hirshfeld spin moment on adsorption site
+    q = []          # Residual Hirshfeld charge on adsorption site
     cnN = []        # Coordination number (CN) of closest N
-    dcnN = []       # Change in N CN during geoopt
+    dcnN = []       # Change in CN_N during geoopt
     cnS = []        # CN of adsorption site
     dcnS = []       # Change in adsorption site CN
     aminS = []      # Smallest angle at the adsorption site
     amaxS = []      # Largest angle at the adsorption site
     aminN = []      # Smallest C-N-C angle
     amaxN = []      # Largest C-N-C angle
-    adispN = []     # Angular displacement of the adsorption site wrt. closest dopant
-    adispH = []     # Angular displacement of the adsorption site wrt. closest occupied site
+    adispN = []     # Angular displacement of S wrt. closest dopant
+    adispH = []     # Angular displacement of S wrt. closest occupied site
 
     # Get H2 energy
     str1 = "grep 'ENERGY|' ../refs/H2/h2-geoopt.out | tail -1 | awk '{print $9}'"
@@ -188,18 +188,20 @@ def main():
             ###########################################################################
 
             # Get atom indices
-            site = nl[1][-1]                                 # Adsorption site, ensure H index -1
-            if xyz.symbols[site] == 'H':
+            site = nl[1][-1]                                    # Adsorption site, ensure H index -1
+            if xyz.symbols[site] == 'H':                        # Check for H2 formation
                 continue
-            nitro = np.where(xyz.symbols == 'N')[0]          # Nitrogen site(s)
-            hydro = np.where(refopt.symbols == 'H')[0]       # Previous hydrogens
-            siteNN = nlref[1][np.where(nlref[0] == site)]    # Ads. site nearest neighbors
+            nitro = np.where(xyz.symbols == 'N')[0]             # Nitrogen site(s)
+            hydro = np.where(refopt.symbols == 'H')[0]          # Previous hydrogens
+            siteNN = nlref[1][np.where(nlref[0] == site)]       # Ads. site nearest neighbors
+            if 'H' in xyz.symbols[siteNN]:                      # Check if site already occupied
+                continue
 
             dNS = []
             for N in nitro:
                 dNS.append(cylDist(refopt,site,N))
-            nearN = nitro[np.where(dNS == np.amin(dNS))][0]  # N closest to ads. site
-            nearNNN = nlref[1][np.where(nlref[0]==nearN)]    # Nearest neighbors of closest N
+            nearN = nitro[np.where(dNS == np.amin(dNS))][0]     # N closest to ads. site
+            nearNNN = nlref[1][np.where(nlref[0]==nearN)]       # Nearest neighbors of closest N
 
             dHS = []
             occupied = []
@@ -213,8 +215,8 @@ def main():
             else:
                 nearH = np.nan
 
-            # Skip some extra sites and duplicates (adsorption to occupied site)
-            if refopt[site].position[0] < 0 or site in occupied:
+            # Skip some extra sites
+            if refopt[site].position[0] < 0:
                 continue
 
             ###########################################################################
@@ -276,11 +278,14 @@ def main():
             if np.isnan(nearH):
                 dminHS.append(np.nan)
                 daveHS.append(np.nan)
+            elif len(dHS) < 2:
+                dminHS.append(np.amin(dHS))
+                daveHS.append(np.nan)
             else:
                 dminHS.append(np.amin(dHS))
                 daveHS.append(np.mean(dHS))
 
-            # Angular displacement
+            # N-S angular displacement
             zaxis = (0,0,1)
             if site == nearN:
                 adispN.append(np.nan)
@@ -289,7 +294,7 @@ def main():
                 A = np.arccos(np.dot(NSvec,zaxis)/np.linalg.norm(NSvec))
                 adispN.append(A)
 
-            # Angular displacement
+            # H-S angular displacement
             if np.isnan(nearH):
                 adispH.append(np.nan)
             else:

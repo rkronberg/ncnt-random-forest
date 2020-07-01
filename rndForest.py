@@ -44,9 +44,12 @@ def doSHAP(rf,x_train):
     # Function for calculating feature importances based on Shapley values
     # and correlation coefficients for the signed impacts on the model output
 
+    # approximate = True in shap_values() runs a method previously proposed 
+    # by Saabas which only considers a single feature ordering. Orders of
+    # magnitude faster, but consistency is not guaranteed!
+
     i = 0
     shap_corrs = []
-
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         shap_values = shap.TreeExplainer(rf).shap_values(x_train)
@@ -161,7 +164,7 @@ def rndsearch(x,y,strat):
     print('Performing randomized search of optimal hyperparameters... ', end='')
 
     estimator = RandomForestRegressor(oob_score=True,random_state=rnd)
-    dists = dict(n_estimators=np.arange(100,600,100),
+    dists = dict(n_estimators=np.arange(500,600,100),
         max_features=np.arange(8,13))
 
     x_train, x_test, y_train, y_test = train_test_split(x,y,test_size=0.1,
@@ -264,7 +267,7 @@ def main():
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Predicting numerical values for training and test set:')
-    rf = RandomForestRegressor(n_estimators=500, max_features=9,
+    rf = RandomForestRegressor(n_estimators=500, max_features=10,
         oob_score=True,random_state=rnd,n_jobs=-1)
 
     # Cross-validation

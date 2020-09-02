@@ -28,14 +28,14 @@ def plot():
         x.append(x_tmp)
 
     # Which prediction should be explained?
-    sampleid = 1 #54, 124, 567, 578
+    sampleid = 272  #333, 110, 272, 556, 334
     cv_split = 9
     expected_value = expected[0]
     shap = shap_values[cv_split][sampleid,:]
     features = x[cv_split][sampleid,:]
 
     #for i in np.arange(0,len(shap_values[cv_split][:,0])):
-    #    if expected_value + shap_values[cv_split][i,:].sum() > 0:
+    #    if np.around(expected_value + shap_values[cv_split][i,:].sum(),decimals=1) == 0.1:
     #        print(i,expected_value + shap_values[cv_split][i,:].sum())
 
     upper_bounds = None
@@ -87,7 +87,7 @@ def plot():
                 neg_high.append(upper_bounds[order[i]])
             neg_lefts.append(loc)
         if num_individual != num_features or i + 4 < num_individual:
-            plt.plot([loc, loc], [rng[i] -1 - 0.4, rng[i] + 0.4], color="k",alpha=0.5, linewidth=1, zorder=-1)
+            plt.plot([loc, loc], [rng[i] -1 - 0.4, rng[i] + 0.4], color="k",alpha=0.5, dashes=(1,2), linewidth=1, zorder=-1)
         if features is None:
             yticklabels[rng[i]] = featureSym[order[i]]
         else:
@@ -148,19 +148,19 @@ def plot():
         txt_obj = plt.text(
             pos_lefts[i] + 0.5*dist, pos_inds[i], "{:.2f}".format(pos_widths[i]),
             horizontalalignment='center', verticalalignment='center', color="white",
-            fontsize=14
+            fontsize=16
         )
         text_bbox = txt_obj.get_window_extent(renderer=renderer)
         arrow_bbox = arrow_obj.get_window_extent(renderer=renderer)
         
         # if the text overflows the arrow then draw it after the arrow
-        if text_bbox.width > arrow_bbox.width: 
+        if text_bbox.width > arrow_bbox.width-arrow_bbox.width/10: 
             txt_obj.remove()
             
             txt_obj = plt.text(
                 pos_lefts[i] + (5/72)*bbox_to_xscale + dist, pos_inds[i], "{:.2f}".format(pos_widths[i]),
                 horizontalalignment='left', verticalalignment='center', color=colors.red_rgb,
-                fontsize=14
+                fontsize=16
             )
     
     # draw the negative arrows
@@ -182,21 +182,21 @@ def plot():
             )
         
         txt_obj = plt.text(
-            neg_lefts[i] + 0.5*dist, neg_inds[i], "{:.2f}".format(neg_widths[i]),
+            neg_lefts[i] + 0.5*dist, neg_inds[i], "${:.2f}$".format(neg_widths[i]),
             horizontalalignment='center', verticalalignment='center', color="white",
-            fontsize=14
+            fontsize=16
         )
         text_bbox = txt_obj.get_window_extent(renderer=renderer)
         arrow_bbox = arrow_obj.get_window_extent(renderer=renderer)
         
         # if the text overflows the arrow then draw it after the arrow
-        if text_bbox.width > arrow_bbox.width: 
+        if text_bbox.width > arrow_bbox.width-arrow_bbox.width/10: 
             txt_obj.remove()
             
             txt_obj = plt.text(
-                neg_lefts[i] - (5/72)*bbox_to_xscale + dist, neg_inds[i], "{:.2f}".format(neg_widths[i]),
+                neg_lefts[i] - (5/72)*bbox_to_xscale + dist, neg_inds[i], "${:.2f}$".format(neg_widths[i]),
                 horizontalalignment='right', verticalalignment='center', color=colors.blue_rgb,
-                fontsize=14
+                fontsize=16
             )
 
     # draw the y-ticks
@@ -206,19 +206,25 @@ def plot():
     for i in range(num_features):
         plt.axhline(i, color='k', alpha=0.5, lw=1, dashes=(1, 5), zorder=-1)
 
-    # draw the E[f(X)] tick mark
-    xmin,xmax = ax.get_xlim()
-    ax2=ax.twiny()
-    ax2.set_xlim(xmin,xmax)
-    ax2.set_xticks([expected_value,expected_value+shap.sum()])
-    ax2.set_xticklabels(['$\mathbb{E}[\hat{f}(x)]=%s$ eV' % "{:.2f}".format(expected_value),
-        '$\hat{f}(x)=%s$ eV' % "{:.2f}".format(expected_value+shap.sum())])
-    ax2.tick_params(labelsize=16)
+    ax.annotate('', xy=(expected_value+shap.sum(), 10.5), xytext=(expected_value+shap.sum(), 9.9),
+        arrowprops=dict(color='black',width=2,headwidth=6,headlength=6),ha='center',
+        annotation_clip=False)
+    plt.text(1, 1.10,'$\hat{f}(\mathbf{x})=%s$ eV (model output)' % "{:.2f}".format(expected_value+shap.sum()),
+        fontsize=18, ha='right', va='center',transform=ax.transAxes)
+
+    ax.annotate('', xy=(expected_value, -1), xytext=(expected_value, -1.6),
+        arrowprops=dict(color='black',width=2,headwidth=6,headlength=6),ha='center',
+        annotation_clip=False)
+    plt.text(0, -0.1,'$\mathbb{E}[\hat{f}(\mathbf{x})]=%s$ eV (base value)' % "{:.2f}".format(expected_value),
+        fontsize=18, ha='left', va='center',transform=ax.transAxes)
+
+    plt.axvline(expected_value, 0, 1/num_features, color="k", alpha=0.5, dashes=(1,2),linewidth=1, zorder=-1)
+    plt.axvline(expected_value + shap.sum(), 1-1.2/num_features, 1, color="k", alpha=0.5, dashes=(1,2),linewidth=1, zorder=-1)
 
     ax.minorticks_on()
     ax.tick_params(which='both',direction='in',top=True,left=False)
     ax.tick_params(axis='y',labelsize=16)
-    plt.subplots_adjust(left=0.26,bottom=0.12)
-    ax.set_xlabel(r'Model output (eV)')
+    plt.subplots_adjust(left=0.26, bottom=0.16)
+    ax.set_xlabel(r'Adsorption energy (eV)', labelpad=24)
     
-    plt.savefig('%s/shap_waterfall_4.pdf' % DATA_PATH)
+    plt.savefig('%s/shap_waterfall_3.pdf' % DATA_PATH)

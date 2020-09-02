@@ -40,6 +40,7 @@ def plot():
     ax[0].set_ylabel(r'$\Delta E_\mathrm{RF}$ (eV)')
     ax[0].set_xlabel(r'$\Delta E_\mathrm{PBE0}$ (eV)')
     ax[0].legend(frameon=False,handletextpad=0.1,loc='upper left')
+    ax[0].text(0, 1.06, r'\textbf{a)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes)
 
     featureSym = settings.flabels()
 
@@ -75,12 +76,12 @@ def plot():
             ax[1].barh(featureSym[i],shap_ave[i],xerr=shap_std[i],capsize=4,color=color)
         if abs(shap_ave[i]) > 0.04:
             ax[1].text(shap_ave[i]-shap_std[i]-0.005,pos,r'$%.2f$' % corr_ave[i],verticalalignment='center', horizontalalignment='right',
-                fontsize=16,color='white')
+                fontsize=18,color='white')
         else:
             ax[1].text(shap_ave[i]+shap_std[i]+0.005,pos,r'$%.2f$' % corr_ave[i],verticalalignment='center', horizontalalignment='left',
-                fontsize=16,color=color)
+                fontsize=18,color=color)
 
-
+    ax[1].text(0, 1.06, r'\textbf{b)}', horizontalalignment='left',verticalalignment='center', transform=ax[1].transAxes)
     ax[1].minorticks_on()
     ax[1].tick_params(which='both',direction='in',top=True,left=False)
     ax[1].tick_params(axis='y',labelsize=16)

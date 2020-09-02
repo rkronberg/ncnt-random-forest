@@ -39,6 +39,7 @@ def plot():
 
     # Plot global feature importances including the correlation
     fig,ax=plt.subplots(1,2,figsize=(14,6))
+    ax[0].text(0, 1.06,r'\textbf{a)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes)
     for pos, i in enumerate(ind_shap[-10:]):
         ax[0].axhline(y=pos,color='k',alpha=0.5,lw=1,dashes=(1,5),zorder=-1)
         if corr_ave[i] >= 0:
@@ -47,12 +48,12 @@ def plot():
         else:
             color = colors.blue_rgb
             ax[0].barh(featureSym[i],shap_ave[i],xerr=shap_std[i],capsize=4,color=color)
-        if abs(shap_ave[i]) > 0.01:
-            ax[0].text(0.012,pos,r'$%.2f$' % corr_ave[i],verticalalignment='center',horizontalalignment='right',
-                fontsize=16,color='white')
+        if abs(shap_ave[i]) > 0.015:
+            ax[0].text(shap_ave[i]-shap_std[i]-0.002,pos,r'$%.2f$' % corr_ave[i],verticalalignment='center',horizontalalignment='right',
+                fontsize=18,color='white')
         else:
-            ax[0].text(0.022,pos,r'$%.2f$' % corr_ave[i],verticalalignment='center',horizontalalignment='right',
-                fontsize=16,color=color)
+            ax[0].text(shap_ave[i]+shap_std[i]+0.002,pos,r'$%.2f$' % corr_ave[i],verticalalignment='center',horizontalalignment='left',
+                fontsize=18,color=color)
 
     ax[0].minorticks_on()
     ax[0].tick_params(which='both',direction='in',top=True,left=False)
@@ -72,8 +73,8 @@ def plot():
                 ax[1].axhline(y=pos, color='k', alpha=0.5, lw=1, dashes=(1,5), zorder=-1)
             shaps = shap_values[split][:,i]
             values = x[split][:, i]
-            inds=np.arange(len(shaps))
-            np.random.shuffle(inds)
+            inds=np.argsort(shaps)
+            #np.random.shuffle(inds)
             if values is not None:
                 values = values[inds]
             shaps = shaps[inds]
@@ -107,7 +108,7 @@ def plot():
             nan_mask = np.isnan(values)
             plt.scatter(shaps[nan_mask], pos + ys[nan_mask], color="#777777", vmin=vmin,
                        vmax=vmax, s=16, linewidth=0,
-                       zorder=3, rasterized=len(shaps) > 500)
+                       zorder=3)
 
             # plot the non-nan values colored by the trimmed feature value
             cvals = values[np.invert(nan_mask)].astype(np.float64)
@@ -118,22 +119,25 @@ def plot():
             plt.scatter(shaps[np.invert(nan_mask)], pos + ys[np.invert(nan_mask)],
                        cmap=cmap, vmin=vmin, vmax=vmax, s=16,
                        c=cvals, linewidth=0,
-                       zorder=3, rasterized=len(shaps) > 500)
+                       zorder=3)
 
+    cax = fig.add_axes([.9,.128,.04,.754])
     m = cm.ScalarMappable(cmap=cmap)
     m.set_array([0, 1])
-    cb = plt.colorbar(m, ticks=[0, 1], aspect=1000)
+    cb = plt.colorbar(m, ticks=[0, 1], aspect=1000, cax=cax)
     cb.set_ticklabels(['Low','High'])
     cb.set_label('Feature value', labelpad=0)
     cb.ax.tick_params(length=0)
     cb.outline.set_visible(False)
     bbox = cb.ax.get_window_extent().transformed(plt.gcf().dpi_scale_trans.inverted())
-    cb.ax.set_aspect((bbox.height - 0.9) * 10)
+    cb.ax.set_aspect((bbox.height - 0.9) * 8)
 
+    ax[1].text(0, 1.06,r'\textbf{b)}', horizontalalignment='left',verticalalignment='center', transform=ax[1].transAxes)
     ax[1].minorticks_on()
     ax[1].tick_params(which='both',direction='in',top=True,left=False,labelleft=False)
     ax[1].set_xlabel(r'$\phi_j$ (eV)')
-    ax[1].set_xticks([-1.6,-1.2,-0.8,-0.4,0.0,0.4])
+    ax[1].set_xlim([-1.4,0.4])
+    ax[1].set_xticks([-1.2,-0.8,-0.4,0.0,0.4])
     plt.subplots_adjust(left=0.17,bottom=0.13,wspace=0.05)
 
     plt.savefig('%s/shap_summary.pdf' % DATA_PATH)

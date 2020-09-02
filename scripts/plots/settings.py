@@ -6,12 +6,12 @@ def rcparams():
 	plt.rc('text', usetex=True)
 	plt.rc('text.latex', preamble=r'\usepackage{amsfonts}')
 	plt.rc('font', family='serif', size=24)
-	plt.rc('axes', linewidth=2)
-	plt.rc('lines', linewidth=2)
-	plt.rc('xtick.major',width=2,size=7)
-	plt.rc('xtick.minor',width=1,size=4)
-	plt.rc('ytick.major',width=2,size=7)
-	plt.rc('ytick.minor',width=1,size=4)
+	plt.rc('axes', linewidth=2.5)
+	plt.rc('lines', linewidth=2.5)
+	plt.rc('xtick.major',width=2.5,size=7)
+	plt.rc('xtick.minor',width=1.5,size=4)
+	plt.rc('ytick.major',width=2.5,size=7)
+	plt.rc('ytick.minor',width=1.5,size=4)
 
 def flabels():
 
@@ -60,7 +60,7 @@ def funit():
 	            r'',
 	            r'rad',
 	            r'e',
-	            r'e',
+	            r'$\mu_\mathrm{B}$',
 	            r'eV',
 	            r'',
 	            r'',

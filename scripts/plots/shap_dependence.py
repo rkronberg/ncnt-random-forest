@@ -5,8 +5,7 @@ from shap.plots import colors
 from . import settings
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../data"))
-OUT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../"))
+DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../data/gga"))
 
 settings.rcparams()
 featureSym = settings.flabels()
@@ -19,9 +18,9 @@ def plot(all):
     x = []
     shap_i=[]
     for k in np.arange(1,11):
-        shap_tmp = np.loadtxt('%s/shap-split_%s.out' % (DATA_PATH,k))
+        shap_tmp = np.loadtxt('%s/shap-split_%s.out' % (DATA_PATH,k), delimiter=',')
         shap_values.append(shap_tmp)
-        x_tmp = np.loadtxt('%s/features-split_%s.out' % (DATA_PATH,k))
+        x_tmp = np.loadtxt('%s/features-split_%s.out' % (DATA_PATH,k), delimiter=',')
         x.append(x_tmp)
         shap_i.append(np.mean(abs(shap_tmp),axis=0))
 
@@ -54,7 +53,7 @@ def plot(all):
     ax[3].set_xticks([0,4,8,12])
     plt.subplots_adjust(hspace=0.25)
 
-    plt.savefig('%s/shap_dependence.pdf' % OUT_PATH)
+    plt.savefig('%s/shap_dependence.pdf' % DATA_PATH)
 
     if(all):
         fig, ax = plt.subplots(5,5,figsize=(25,25))
@@ -68,4 +67,4 @@ def plot(all):
                 ax[pos].set_xlabel("%s (%s)" % (featureSym[i],funit[i]))
         plt.subplots_adjust(hspace=0.5)
         
-        plt.savefig('%s/shap_dependence_all.pdf' % OUT_PATH)
+        plt.savefig('%s/shap_dependence_all.pdf' % DATA_PATH)

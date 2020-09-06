@@ -7,12 +7,10 @@ if __name__ == '__main__':
     lc = True
     predictions.plot(lc)
 
-    #shap_summary.plot()
+    shap_summary.plot()
 
     # Plot dependence plots for all features
-    #all = True
-    #shap_dependence.plot(all)
+    plot_all = True
+    shap_dependence.plot(plot_all)
 
-    #shap_waterfall.plot()
-    
-    plt.show()
+    shap_waterfall.plot()

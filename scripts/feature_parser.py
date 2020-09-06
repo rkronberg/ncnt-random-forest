@@ -15,9 +15,10 @@ import subprocess, os
 from ase.io import read, write
 from ase.neighborlist import neighbor_list as NL
 from tqdm import tqdm
+import pandas as pd
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../data"))
+DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../data/gga"))
 CP2K_OUT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../.."))
 
 def cart2pol(x, y):
@@ -90,6 +91,9 @@ def main():
     amaxN = []      # Largest C-N-C angle
     adispN = []     # Angular displacement of S wrt. closest dopant
     adispH = []     # Angular displacement of S wrt. closest occupied site
+
+    ds = []
+    cs = []
 
     # Get H2 energy
     str1 = "grep 'ENERGY|' %s/refs/H2/h2-geoopt.out | tail -1 | awk '{print $9}'" % CP2K_OUT_PATH
@@ -211,12 +215,12 @@ def main():
 
             # Get atom indices
             site = nl[1][-1]                                    # Adsorption site, ensure H index -1
-            if xyz.symbols[site] == 'H':                        # Check for H2 formation
-                continue
             nitro = np.where(xyz.symbols == 'N')[0]             # Nitrogen site(s)
             hydro = np.where(refopt.symbols == 'H')[0]          # Previous hydrogens
             siteNN = nlref[1][np.where(nlref[0] == site)]       # Ads. site nearest neighbors
-            if 'H' in xyz.symbols[siteNN]:                      # Check if site already occupied
+
+            # Skip some extra sites, check if site already occupied or if there is H2 formation
+            if refopt[site].position[0] < 0 or 'H' in xyz.symbols[siteNN] or xyz.symbols[site] == 'H':
                 continue
 
             dNS = []
@@ -229,7 +233,8 @@ def main():
             occupied = []
             if len(hydro) != 0:
                 for h in hydro:
-                    occupied.append(nlref[1][np.where(nlref[0]==h)])  # Occupied sites  
+                    occ_site = nlref[1][np.where(nlref[0]==h)]
+                    occupied.append(occ_site)  # Occupied sites
                 occupied = np.array(occupied).reshape(-1)
                 for occ in occupied:
                     dHS.append(cylDist(refopt,site,occ))
@@ -237,13 +242,12 @@ def main():
             else:
                 nearH = np.nan
 
-            # Skip some extra sites
-            if refopt[site].position[0] < 0:
-                continue
-
             ###########################################################################
 
             # Log simple features
+
+            ds.append(d)
+            cs.append(c)
 
             # Adsorption energy
             Ead.append(dE)
@@ -354,14 +358,10 @@ def main():
 
             ###########################################################################
 
-    np.savetxt('%s/masterdata.dat' % DATA_PATH,
-        np.c_[Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,\
-        chir,q,mu,Egap,cnN,dcnN,cnS,dcnS,aminS,amaxS,aminN,amaxN,adispN,adispH],
-        header='Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,\
-        chir,q,mu,Egap,cnN,dcnN,cnS,dcnS,aminS,amaxS,aminN,amaxN,adispN,adispH',
-        fmt='%8.3f,%8.3f,%8.3f,%8.3f,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,\
-        %4i,%8.3f,%8.3f,%8.3f,%8.3f,%4i,%4i,%4i,%4i,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f,%8.3f',
-        delimiter=',',comments='')
+    arr = np.c_[ds,cs,Ead,cV,cN,cH,Z,rmsd,rmaxsd,dminNS,daveNS,dminHS,daveHS,mult,chir,q,mu,Egap,cnN,dcnN,cnS,dcnS,aminS,amaxS,aminN,amaxN,adispN,adispH]
+    pd.DataFrame(arr).to_csv('%s/masterdata.csv' % DATA_PATH,
+        header=['conf','id','Ead','cV','cN','cH','Z','rmsd','rmaxsd','dminNS','daveNS','dminHS','daveHS','mult','chir','q','mu','Egap','cnN','dcnN','cnS','dcnS','aminS','amaxS','aminN','amaxN','adispN','adispH'],
+        float_format='%.8f',index=False)
 
 if __name__ == '__main__':
     main()

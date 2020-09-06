@@ -4,6 +4,9 @@ Random Forest ML implementation for H adsorption on NCNTs.
 Includes options for randomized hyperparameter search,
 calculation of SHAP values and learning curve generation.
 
+GGA: ntrees 500, nfeatures 10
+Hybrid: ntrees 100, nfeatures 12
+
 author: Rasmus Kronberg
 email: rasmus.kronberg@aalto.fi
 """
@@ -17,12 +20,6 @@ import os
 
 from crossval import CrossValidate
 from utils import Utilities
-
-CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, '../data'))
-
-# RNG seed
-rnd = 2
 
 
 def line():
@@ -40,7 +37,7 @@ def parse():
     parser.add_argument('-sh', '--shap', action='store_true', help='Do SHAP \
      analysis')
     parser.add_argument('-lc', '--ntrain', type=int, help='Number of evenly \
-        spaced training sizes for learning curve generation')
+        spaced training set sizes for learning curve generation')
     parser.add_argument('-rs', '--rsiter', type=int, help='Number of \
         iterations for randomized hyperparameter search')
     parser.add_argument('-cv', '--cvfolds', default=10, type=int,
@@ -64,6 +61,13 @@ def main():
     ntrain = args['ntrain']
     doshap = args['shap']
 
+    # RNG seed
+    rnd = 11111
+
+    CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
+    DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH,
+                                              os.path.dirname(inp)))
+
     line()
     print('RANDOM FOREST REGRESSOR')
     print('Current directory: %s' % CURRENT_PATH)
@@ -83,14 +87,14 @@ def main():
                     'Egap', 'cnN', 'dcnN', 'cnS', 'dcnS', 'aminS', 'amaxS',
                     'aminN', 'amaxN', 'adispN', 'adispH']
 
-    # Impute missing values with -999
-    data = data.apply(pd.to_numeric, errors='coerce').fillna(-999,
-                                                             downcast='infer')
-
     # Describe the data
     line()
     print('Metadata:')
     print(data.describe())
+
+    # Impute missing values with -999
+    data = data.apply(pd.to_numeric,
+                      errors='coerce').fillna(-999, downcast='infer')
 
     # Get matrix of features and target variable vector
     x = data[pd.Index(featureNames)].values
@@ -108,7 +112,7 @@ def main():
         print('Performing randomized search of optimal hyperparameters... ',
               end='')
         dist = dict(n_estimators=np.arange(100, 600, 100),
-                    max_features=np.arange(8, 16))
+                    max_features=np.arange(10, 15))
         u.random_search(dist, rsiter)
         ntrees = u.best_params['n_estimators']
         nfeatures = u.best_params['max_features']
@@ -126,13 +130,11 @@ def main():
         line()
         print('Generating learning curve... ', end='')
         u.learning_curve(rf, ntrain)
-        np.savetxt('%s/learning_curve.out' % DATA_PATH, np.c_[u.train_sizes,
-                                                              u.train_mean,
-                                                              u.train_std,
-                                                              u.test_mean,
-                                                              u.test_std],
-                   header='Train sizes, Train mean, Train std, Test mean, \
-                   Test std', delimiter=',')
+        header = 'Train sizes, Train mean, Train std, Test mean, Test std'
+        np.savetxt('%s/learning_curve.out' % DATA_PATH,
+                   np.c_[u.train_sizes, u.train_mean, u.train_std,
+                         u.test_mean, u.test_std],
+                   header=header, delimiter=',')
         print('Done!')
 
     # Train, test model and perform SHAP analysis with k-fold stratifed CV

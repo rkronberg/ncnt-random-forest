@@ -7,8 +7,7 @@ from shap.plots import colors
 from . import settings
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../data"))
-OUT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../"))
+DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../data/gga"))
 
 def plot():
 
@@ -23,13 +22,13 @@ def plot():
     shap_i = []
     shap_c = []
     for k in np.arange(1,11):
-        shap_tmp = np.loadtxt('%s/shap-split_%s.out' % (DATA_PATH,k))
+        shap_tmp = np.loadtxt('%s/shap-split_%s.out' % (DATA_PATH,k), delimiter=',')
         shap_values.append(shap_tmp)
-        x_tmp = np.loadtxt('%s/features-split_%s.out' % (DATA_PATH,k))
+        x_tmp = np.loadtxt('%s/features-split_%s.out' % (DATA_PATH,k), delimiter=',')
         x.append(x_tmp)
         shap_corrs = []
         for i, feature in enumerate(x_tmp[0]):
-            shap_corrs.append(np.corrcoef(x_tmp[:,i],shap_tmp[:,i])[1,0])
+            shap_corrs.append(np.ma.corrcoef(np.ma.masked_invalid(x_tmp[:,i]),np.ma.masked_invalid(shap_tmp[:,i]))[1,0])
         shap_i.append(np.mean(abs(shap_tmp),axis=0))
         shap_c.append(shap_corrs)
 
@@ -43,9 +42,17 @@ def plot():
     for pos, i in enumerate(ind_shap[-10:]):
         ax[0].axhline(y=pos,color='k',alpha=0.5,lw=1,dashes=(1,5),zorder=-1)
         if corr_ave[i] >= 0:
-            ax[0].barh(featureSym[i],shap_ave[i],xerr=shap_std[i],capsize=4,color=colors.red_rgb)
+            color = colors.red_rgb
+            ax[0].barh(featureSym[i],shap_ave[i],xerr=shap_std[i],capsize=4,color=color)
         else:
-            ax[0].barh(featureSym[i],shap_ave[i],xerr=shap_std[i],capsize=4,color=colors.blue_rgb)
+            color = colors.blue_rgb
+            ax[0].barh(featureSym[i],shap_ave[i],xerr=shap_std[i],capsize=4,color=color)
+        if abs(shap_ave[i]) > 0.01:
+            ax[0].text(0.012,pos,r'$%.2f$' % corr_ave[i],verticalalignment='center',horizontalalignment='right',
+                fontsize=16,color='white')
+        else:
+            ax[0].text(0.022,pos,r'$%.2f$' % corr_ave[i],verticalalignment='center',horizontalalignment='right',
+                fontsize=16,color=color)
 
     ax[0].minorticks_on()
     ax[0].tick_params(which='both',direction='in',top=True,left=False)
@@ -129,4 +136,4 @@ def plot():
     ax[1].set_xticks([-1.6,-1.2,-0.8,-0.4,0.0,0.4])
     plt.subplots_adjust(left=0.17,bottom=0.13,wspace=0.05)
 
-    plt.savefig('%s/shap_summary.pdf' % OUT_PATH)
+    plt.savefig('%s/shap_summary.pdf' % DATA_PATH)

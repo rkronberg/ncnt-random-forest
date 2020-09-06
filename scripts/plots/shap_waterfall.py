@@ -6,8 +6,7 @@ from . import settings
 import matplotlib
 
 CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../data"))
-OUT_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../"))
+DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH, "../../data/gga"))
 
 settings.rcparams()
 featureSym = settings.flabels()
@@ -20,16 +19,16 @@ def plot():
     x = []
     expected=[]
     for k in np.arange(1,11):
-        exp_tmp=subprocess.check_output("grep Expected %s/shap-split_%s.out \
-         | awk '{print $10}'" % (DATA_PATH,k), shell=True).decode()
+        exp_tmp=subprocess.check_output("grep Base %s/shap-split_%s.out \
+         | awk '{print $9}'" % (DATA_PATH,k), shell=True).decode()
         expected.append(float(exp_tmp.strip(')\n')))
-        shap_tmp = np.loadtxt('%s/shap-split_%s.out' % (DATA_PATH,k))
+        shap_tmp = np.loadtxt('%s/shap-split_%s.out' % (DATA_PATH,k), delimiter=',')
         shap_values.append(shap_tmp)
-        x_tmp = np.loadtxt('%s/features-split_%s.out' % (DATA_PATH,k))
+        x_tmp = np.loadtxt('%s/features-split_%s.out' % (DATA_PATH,k), delimiter=',')
         x.append(x_tmp)
 
     # Which prediction should be explained?
-    sampleid = 567 #54, 124, 567, 578
+    sampleid = 1 #54, 124, 567, 578
     cv_split = 9
     expected_value = expected[0]
     shap = shap_values[cv_split][sampleid,:]
@@ -222,4 +221,4 @@ def plot():
     plt.subplots_adjust(left=0.26,bottom=0.12)
     ax.set_xlabel(r'Model output (eV)')
     
-    plt.savefig('%s/shap_waterfall_4.pdf' % OUT_PATH)
+    plt.savefig('%s/shap_waterfall_4.pdf' % DATA_PATH)

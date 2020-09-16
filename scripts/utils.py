@@ -1,15 +1,15 @@
 """
-Utility class including methods for learning curve generation
-and randomized hyperparameter optimization
+Utility class including methods for learning curve generation and randomized
+hyperparameter optimization with stratified k-fold cross-validation.
 
 author: Rasmus Kronberg
 email: rasmus.kronberg@aalto.fi
 """
 
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import (StratifiedKFold, RandomizedSearchCV,
-                                     learning_curve)
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import StratifiedKFold, \
+    RandomizedSearchCV, learning_curve
 
 
 class Utilities:
@@ -24,22 +24,23 @@ class Utilities:
         self.strat = strat
         self.rnd = rnd
 
-    def learning_curve(self, model, lcsize):
+    def learning_curve(self, model, lcsize=10):
 
         # Generate learning curve
 
         iterator = self.skf.split(self.x, self.strat)
-        self.train_sizes, train_scores, test_scores \
-            = learning_curve(model, self.x, self.y, cv=iterator,
-                             train_sizes=np.linspace(0.1, 1, lcsize),
-                             shuffle=True, random_state=self.rnd, n_jobs=-1)
+        lc = learning_curve(model, self.x, self.y, cv=iterator,
+                            train_sizes=np.linspace(0.1, 1, lcsize),
+                            shuffle=True, random_state=self.rnd, n_jobs=-1)
+
+        (self.train_sizes, train_scores, test_scores) = lc
 
         self.train_mean = np.mean(train_scores, axis=1)
         self.test_mean = np.mean(test_scores, axis=1)
         self.train_std = np.std(train_scores, axis=1, ddof=1)
         self.test_std = np.std(test_scores, axis=1, ddof=1)
 
-    def random_search(self, dist, rsiter):
+    def random_search(self, dist, rsiter=20):
 
         # Function for performing randomized hyperparameter search
 

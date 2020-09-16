@@ -4,8 +4,9 @@ Random Forest ML implementation for H adsorption on NCNTs.
 Includes options for randomized hyperparameter search,
 calculation of SHAP values and learning curve generation.
 
-GGA: ntrees 500, nfeatures 10
-Hybrid: ntrees 100, nfeatures 12
+Optimal hyperparameters
+GGA dataset: ntrees 300, nfeatures 9
+Hybrid dataset: ntrees 100, nfeatures 12
 
 author: Rasmus Kronberg
 email: rasmus.kronberg@aalto.fi
@@ -22,51 +23,48 @@ from crossval import CrossValidate
 from utils import Utilities
 
 
+def parse():
+
+    # Parse command line arguments
+
+    parser = ArgumentParser(
+        description='Random forest ML model for H adsorption on NCNTs')
+    parser.add_argument('-i', '--input', required=True, help='Input data')
+    parser.add_argument('-sh', '--shap', action='store_true',
+                        help='Run SHAP analysis')
+    parser.add_argument('-lc', '--ntrain', type=int,
+                        help='Number of learning curve training set sizes')
+    parser.add_argument('-rs', '--rsiter', type=int,
+                        help='Number of random parameter search iterations')
+    parser.add_argument('-cv', '--cvfolds', default=10, type=int,
+                        help='Number of CV folds')
+    parser.add_argument('-nt', '--ntrees', default=100, type=int,
+                        help='Number of trees')
+    parser.add_argument('-nf', '--nfeatures', default=10, type=int,
+                        help='Number of features to consider at each split')
+
+    return parser.parse_args()
+
+
 def line():
 
     print('\n========================\n')
 
 
-def parse():
-
-    # Parse input arguments
-
-    parser = ArgumentParser(description='Random forest ML model for H \
-        adsorption on NCNTs')
-    parser.add_argument('-i', '--input', required=True, help='Input data')
-    parser.add_argument('-sh', '--shap', action='store_true', help='Do SHAP \
-     analysis')
-    parser.add_argument('-lc', '--ntrain', type=int, help='Number of evenly \
-        spaced training set sizes for learning curve generation')
-    parser.add_argument('-rs', '--rsiter', type=int, help='Number of \
-        iterations for randomized hyperparameter search')
-    parser.add_argument('-cv', '--cvfolds', default=10, type=int,
-                        help='Number of CV folds')
-    parser.add_argument('-nt', '--ntrees', default=100, type=int,
-                        help='Number of trees in RF')
-    parser.add_argument('-nf', '--nfeatures', default=10, type=int,
-                        help='Number of features considered for each tree')
-
-    return vars(parser.parse_args())
-
-
 def main():
 
     args = parse()
-    inp = args['input']
-    ntrees = args['ntrees']
-    nfeatures = args['nfeatures']
-    nfolds = args['cvfolds']
-    rsiter = args['rsiter']
-    ntrain = args['ntrain']
-    doshap = args['shap']
-
-    # RNG seed
-    rnd = 11111
+    inp = args.input
+    ntrees = args.ntrees
+    nfeatures = args.nfeatures
+    nfolds = args.cvfolds
+    rsiter = args.rsiter
+    ntrain = args.ntrain
+    doshap = args.shap
 
     CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-    DATA_PATH = os.path.normpath(os.path.join(CURRENT_PATH,
-                                              os.path.dirname(inp)))
+    DATA_PATH = os.path.normpath(
+        os.path.join(CURRENT_PATH, os.path.dirname(inp)))
 
     line()
     print('RANDOM FOREST REGRESSOR')
@@ -81,20 +79,20 @@ def main():
     print(data.dtypes)
     print('Finished reading data, length of data: %s' % size)
 
-    # Select features to test
-    featureNames = ['cV', 'cN', 'cH', 'Z', 'rmsd', 'rmaxsd', 'dminNS',
-                    'daveNS', 'dminHS', 'daveHS', 'mult', 'chir', 'q', 'mu',
-                    'Egap', 'cnN', 'dcnN', 'cnS', 'dcnS', 'aminS', 'amaxS',
-                    'aminN', 'amaxN', 'adispN', 'adispH']
-
     # Describe the data
     line()
     print('Metadata:')
     print(data.describe())
 
     # Impute missing values with -999
-    data = data.apply(pd.to_numeric,
-                      errors='coerce').fillna(-999, downcast='infer')
+    data = data.apply(
+        pd.to_numeric, errors='coerce').fillna(-999, downcast='infer')
+
+    # Select features to test
+    featureNames = ['cV', 'cN', 'cH', 'Z', 'rmsd', 'rmaxsd', 'dminNS',
+                    'daveNS', 'dminHS', 'daveHS', 'mult', 'chir', 'q', 'mu',
+                    'Egap', 'cnN', 'dcnN', 'cnS', 'dcnS', 'aminS', 'amaxS',
+                    'aminN', 'amaxN', 'adispN', 'adispH']
 
     # Get matrix of features and target variable vector
     x = data[pd.Index(featureNames)].values
@@ -112,8 +110,8 @@ def main():
         print('Performing randomized search of optimal hyperparameters... ',
               end='')
         dist = dict(n_estimators=np.arange(100, 600, 100),
-                    max_features=np.arange(10, 15))
-        u.random_search(dist, rsiter)
+                    max_features=np.arange(5, 15))
+        u.random_search(dist, rsiter=rsiter)
         ntrees = u.best_params['n_estimators']
         nfeatures = u.best_params['max_features']
         print('Done!')
@@ -121,7 +119,7 @@ def main():
         print('Optimal number of features: %s' % nfeatures)
         print('Best R2 score: %.4f' % u.best_score)
 
-    # Initialize the random forest regressor
+    # Initialize random forest regressor with given/optimized parameters
     rf = RandomForestRegressor(n_estimators=ntrees, max_features=nfeatures,
                                oob_score=True, random_state=rnd, n_jobs=-1)
 
@@ -129,7 +127,7 @@ def main():
     if ntrain is not None:
         line()
         print('Generating learning curve... ', end='')
-        u.learning_curve(rf, ntrain)
+        u.learning_curve(rf, lcsize=ntrain)
         header = 'Train sizes, Train mean, Train std, Test mean, Test std'
         np.savetxt('%s/learning_curve.out' % DATA_PATH,
                    np.c_[u.train_sizes, u.train_mean, u.train_std,
@@ -147,15 +145,16 @@ def main():
     cv.run(x, y, rf, strat, rnd, DATA_PATH, doshap=doshap)
 
     print('\n')
-    print('R2 score (Training set): %.4f +- %.4f' % (cv.score_R2_train,
+    print('R2 score (Training set): %.4f +/- %.4f' % (cv.score_R2_train,
           cv.score_R2_train_std))
-    print('R2 score (Test set): %.4f +- %.4f' % (cv.score_R2_test,
+    print('R2 score (Test set): %.4f +/- %.4f' % (cv.score_R2_test,
           cv.score_R2_test_std))
-    print('RMSE (Training set): %.4f +- %.4f eV' % (cv.score_train,
+    print('RMSE (Training set): %.4f +/- %.4f eV' % (cv.score_train,
           cv.score_train_std))
-    print('RMSE (Test set): %.4f +- %.4f eV' % (cv.score_test,
+    print('RMSE (Test set): %.4f +/- %.4f eV' % (cv.score_test,
           cv.score_test_std))
 
 
 if __name__ == '__main__':
+    rnd = 11111
     main()

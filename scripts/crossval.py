@@ -1,7 +1,7 @@
 """
-Class for training and testing the machine learning model
-with k-fold cross-validation. Includes an option for calculating
-cross-validated Shapley values following the method of Lundberg & Lee
+Class for training and testing the machine learning model with stratified
+k-fold cross-validation. Includes an option for calculating Shapley values
+for feature attribution as presented by Lundberg & Lee (SHAP).
 
 author: Rasmus Kronberg
 email: rasmus.kronberg@aalto.fi

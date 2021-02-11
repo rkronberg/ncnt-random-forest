@@ -5,8 +5,8 @@ Includes options for randomized hyperparameter search,
 calculation of SHAP values and learning curve generation.
 
 Optimal hyperparameters
-GGA dataset: ntrees 300, nfeatures 9
-Hybrid dataset: ntrees 100, nfeatures 12
+GGA dataset: ntrees 500, nfeatures 13
+Hybrid dataset: ntrees 200, nfeatures 16
 
 author: Rasmus Kronberg
 email: rasmus.kronberg@aalto.fi
@@ -15,6 +15,8 @@ email: rasmus.kronberg@aalto.fi
 # Load necessary packages
 from sklearn.ensemble import RandomForestRegressor
 from argparse import ArgumentParser
+from joblib import Parallel, delayed
+from time import time
 import pandas as pd
 import numpy as np
 import os
@@ -30,8 +32,8 @@ def parse():
     parser = ArgumentParser(
         description='Random forest ML model for H adsorption on NCNTs')
     parser.add_argument('-i', '--input', required=True, help='Input data')
-    parser.add_argument('-sh', '--shap', action='store_true',
-                        help='Run SHAP analysis')
+    parser.add_argument('-sh', '--shap', type=int,
+                        help='Run SHAP (negative value includes interactions')
     parser.add_argument('-lc', '--ntrain', type=int,
                         help='Number of learning curve training set sizes')
     parser.add_argument('-rs', '--rsiter', type=int,
@@ -92,7 +94,7 @@ def main():
     featureNames = ['cV', 'cN', 'cH', 'Z', 'rmsd', 'rmaxsd', 'dminNS',
                     'daveNS', 'dminHS', 'daveHS', 'mult', 'chir', 'q', 'mu',
                     'Egap', 'cnN', 'dcnN', 'cnS', 'dcnS', 'aminS', 'amaxS',
-                    'aminN', 'amaxN', 'adispN', 'adispH']
+                    'aminN', 'amaxN', 'adispN', 'adispH','lmin','lmax','lave']
 
     # Get matrix of features and target variable vector
     x = data[pd.Index(featureNames)].values
@@ -110,7 +112,7 @@ def main():
         print('Performing randomized search of optimal hyperparameters... ',
               end='')
         dist = dict(n_estimators=np.arange(100, 600, 100),
-                    max_features=np.arange(5, 15))
+                    max_features=np.arange(8, 18))
         u.random_search(dist, rsiter=rsiter)
         ntrees = u.best_params['n_estimators']
         nfeatures = u.best_params['max_features']
@@ -135,26 +137,34 @@ def main():
                    header=header, delimiter=',')
         print('Done!')
 
-    # Train, test model and perform SHAP analysis with k-fold stratifed CV
     line()
+
+    # Train, test model and perform SHAP analysis with k-fold stratifed CV
     print('Predicting numerical values for training and test set:')
     print('%s-fold cross-validation (training data: %s, test data: %s)' %
           (nfolds, size-round(size/nfolds), round(size/nfolds)))
 
-    cv = CrossValidate(nfolds)
-    cv.run(x, y, rf, strat, rnd, DATA_PATH, doshap=doshap)
+    cv = CrossValidate(nfolds, rnd)
+    results = Parallel(n_jobs=cv.ncores)(delayed(cv.run)(k, train, test, x, y,
+             rf, DATA_PATH, doshap=doshap)
+             for k, (train, test) in enumerate(cv.skf.split(x, strat)))
 
-    print('\n')
-    print('R2 score (Training set): %.4f +/- %.4f' % (cv.score_R2_train,
-          cv.score_R2_train_std))
-    print('R2 score (Test set): %.4f +/- %.4f' % (cv.score_R2_test,
-          cv.score_R2_test_std))
-    print('RMSE (Training set): %.4f +/- %.4f eV' % (cv.score_train,
-          cv.score_train_std))
-    print('RMSE (Test set): %.4f +/- %.4f eV' % (cv.score_test,
-          cv.score_test_std))
+    mean_scores = np.mean(results, axis=0)
+    std_scores = np.std(results, axis=0, ddof=1)
+
+    print('\nTraining set scoring:')
+    print('RMSE (Train): %.4f +/- %.4f eV' % (mean_scores[0], std_scores[0]))
+    print('MAE (Train): %.4f +/- %.4f eV' % (mean_scores[1], std_scores[1]))
+    print('R2 (Train): %.4f +/- %.4f' % (mean_scores[2], std_scores[2]))
+    print('Test set scoring:')
+    print('RMSE (Test): %.4f +/- %.4f eV' % (mean_scores[3], std_scores[3]))
+    print('MAE (Test): %.4f +/- %.4f eV' % (mean_scores[4], std_scores[4]))
+    print('R2 (Test): %.4f +/- %.4f' % (mean_scores[5], std_scores[5]))
+
+    print('\nExecuted in %.0f seconds' % (time()-t0))
 
 
 if __name__ == '__main__':
-    rnd = 11111
+    t0 = time()
+    rnd = 123
     main()

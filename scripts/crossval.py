@@ -23,7 +23,7 @@ class CrossValidate:
 
         self.nfolds = nfolds
         self.skf = StratifiedKFold(n_splits=self.nfolds, shuffle=True,
-                              random_state=rnd)
+                                   random_state=rnd)
         self.ncores = nfolds if nfolds <= mp.cpu_count() else mp.cpu_count()
         print('Multiprocessing with %s CPUs\n' % self.ncores)
 
@@ -49,20 +49,21 @@ class CrossValidate:
             x_test = x[test]
             x_test[np.where(x_test == -999)] = np.nan
 
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                exp = shap.TreeExplainer(model)
-                shap_base = exp.expected_value[0]
-                shap_values = exp.shap_values(x_test)
-                if doshap < 0:
-                    interaction_values = exp.shap_interaction_values(x_test)
-                    # Store 3D array as 2D slices
-                    with open('%s/interaction-split_%s.out' % (path, k+1), 'w') as out:
-                        out.write('# Interactions values, shape %s (CV split %s/%s)\n' 
-                                  % (interaction_values.shape, k+1, self.nfolds))
-                        for data_slice in interaction_values:
-                            np.savetxt(out, data_slice, delimiter=',')
-                            out.write('# Next slice\n')
+            explainer = shap.explainers.Tree(model)
+            shap_base = explainer.expected_value[0]
+            shap_values = explainer.shap_values(x_test)
+
+            # Calculate SHAP interaction values
+            if doshap < 0:
+                interaction_values = explainer.shap_interaction_values(x_test)
+
+                # Store 3D array as 2D slices
+                with open('%s/interact-split_%s.out' % (path, k+1), 'w') as o:
+                    o.write('# Interact. values, shape %s (CV split %s/%s)\n'
+                              % (interaction_values.shape, k+1, self.nfolds))
+                    for data_slice in interaction_values:
+                        np.savetxt(o, data_slice, delimiter=',')
+                        o.write('# Next slice\n')
 
             np.savetxt('%s/shap-split_%s.out' % (path, k+1), shap_values,
                        header='SHAP values (CV split %s/%s, Base value %.6f)'
@@ -81,6 +82,6 @@ class CrossValidate:
                    % (k+1, self.nfolds), delimiter=',')
 
         print('Split %s/%s done!' % (k+1, self.nfolds))
-        
+
         return error_rmse_train, error_mae_train, error_r2_train, \
-               error_rmse_test, error_mae_test, error_r2_test
+            error_rmse_test, error_mae_test, error_r2_test

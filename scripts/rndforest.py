@@ -94,7 +94,8 @@ def main():
     featureNames = ['cV', 'cN', 'cH', 'Z', 'rmsd', 'rmaxsd', 'dminNS',
                     'daveNS', 'dminHS', 'daveHS', 'mult', 'chir', 'q', 'mu',
                     'Egap', 'cnN', 'dcnN', 'cnS', 'dcnS', 'aminS', 'amaxS',
-                    'aminN', 'amaxN', 'adispN', 'adispH','lmin','lmax','lave']
+                    'aminN', 'amaxN', 'adispN', 'adispH', 'lmin', 'lmax',
+                    'lave']
 
     # Get matrix of features and target variable vector
     x = data[pd.Index(featureNames)].values
@@ -112,7 +113,7 @@ def main():
         print('Performing randomized search of optimal hyperparameters... ',
               end='')
         dist = dict(n_estimators=np.arange(100, 600, 100),
-                    max_features=np.arange(8, 18))
+                    max_features=np.arange(1, 21))
         u.random_search(dist, rsiter=rsiter)
         ntrees = u.best_params['n_estimators']
         nfeatures = u.best_params['max_features']

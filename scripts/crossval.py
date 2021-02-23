@@ -1,19 +1,19 @@
-"""
+'''
 Class for training and testing the machine learning model with stratified
 k-fold cross-validation. Includes an option for calculating Shapley values
 for feature attribution as presented by Lundberg & Lee (SHAP).
 
 author: Rasmus Kronberg
 email: rasmus.kronberg@aalto.fi
-"""
+'''
 
+# Load necessary packages
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import mean_squared_error as mse
 from sklearn.metrics import mean_absolute_error as mae
 import multiprocessing as mp
 import numpy as np
 import shap
-import warnings
 
 
 class CrossValidate:
@@ -22,10 +22,11 @@ class CrossValidate:
         # Initialize
 
         self.nfolds = nfolds
+        self.rnd = rnd
         self.skf = StratifiedKFold(n_splits=self.nfolds, shuffle=True,
                                    random_state=rnd)
-        self.ncores = nfolds if nfolds <= mp.cpu_count() else mp.cpu_count()
-        print('Multiprocessing with %s CPUs\n' % self.ncores)
+        self.ncpu = nfolds if nfolds <= mp.cpu_count() else mp.cpu_count()
+        print('Multiprocessing with %s CPUs\n' % self.ncpu)
 
     def run(self, k, train, test, x, y, model, path, doshap=None):
 
@@ -49,8 +50,9 @@ class CrossValidate:
             x_test = x[test]
             x_test[np.where(x_test == -999)] = np.nan
 
+            # Calculate observational ('true to the data') SHAP values
             explainer = shap.explainers.Tree(model)
-            shap_base = explainer.expected_value[0]
+            shap_base = explainer.expected_value
             shap_values = explainer.shap_values(x_test)
 
             # Calculate SHAP interaction values
@@ -60,7 +62,7 @@ class CrossValidate:
                 # Store 3D array as 2D slices
                 with open('%s/interact-split_%s.out' % (path, k+1), 'w') as o:
                     o.write('# Interact. values, shape %s (CV split %s/%s)\n'
-                              % (interaction_values.shape, k+1, self.nfolds))
+                            % (interaction_values.shape, k+1, self.nfolds))
                     for data_slice in interaction_values:
                         np.savetxt(o, data_slice, delimiter=',')
                         o.write('# Next slice\n')
@@ -80,8 +82,6 @@ class CrossValidate:
                    np.c_[y[test], y_pred_test],
                    header='y_test, y_pred_test (CV split %s/%s)'
                    % (k+1, self.nfolds), delimiter=',')
-
-        print('Split %s/%s done!' % (k+1, self.nfolds))
 
         return error_rmse_train, error_mae_train, error_r2_train, \
             error_rmse_test, error_mae_test, error_r2_test

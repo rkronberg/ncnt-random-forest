@@ -40,7 +40,7 @@ def parse():
                         help='Run SHAP (negative value includes interactions)')
     parser.add_argument('-rs', '--rsiter', type=int,
                         help='Perform this many parameter search iterations')
-    parser.add_argument('-v', '--valname', type=str,
+    parser.add_argument('-vc', '--valname', type=str,
                         help='Generate validation curve for given parameter')
     parser.add_argument('-lc', '--lcsize', type=int,
                         help='Generate learning curve with given train sizes')

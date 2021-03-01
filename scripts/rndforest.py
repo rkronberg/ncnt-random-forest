@@ -27,24 +27,23 @@ from utils import Utilities
 def parse():
 
     # Parse command line arguments
-
     parser = ArgumentParser(
         description='Random forest ML model for H adsorption on NCNTs')
     parser.add_argument('-i', '--input', required=True, help='Input data')
-    parser.add_argument('-sh', '--shap', type=int,
-                        help='Run SHAP (negative value includes interactions')
-    parser.add_argument('-lc', '--ntrain', type=int,
-                        help='Number of learning curve training set sizes')
-    parser.add_argument('-rs', '--rsiter', type=int,
-                        help='Number of random parameter search iterations')
-    parser.add_argument('-cv', '--cvfolds', default=10, type=int,
-                        help='Number of CV folds')
     parser.add_argument('-nt', '--ntrees', default=100, type=int,
                         help='Number of trees')
     parser.add_argument('-nf', '--nfeatures', default=10, type=int,
-                        help='Number of features to consider at each split')
-    parser.add_argument('-v', '--validation', type=str,
-                        help='Generate validation curve wrt. given argument')
+                        help='Number of features considered at each split')
+    parser.add_argument('-cv', '--cvfolds', default=10, type=int,
+                        help='Number of CV folds')
+    parser.add_argument('-sh', '--shap', type=int,
+                        help='Run SHAP (negative value includes interactions)')
+    parser.add_argument('-rs', '--rsiter', type=int,
+                        help='Perform this many parameter search iterations')
+    parser.add_argument('-v', '--valname', type=str,
+                        help='Generate validation curve for given parameter')
+    parser.add_argument('-lc', '--lcsize', type=int,
+                        help='Generate learning curve with given train sizes')
 
     return parser.parse_args()
 
@@ -60,15 +59,15 @@ def main():
     inp = args.input
     ntrees = args.ntrees
     nfeatures = args.nfeatures
-    nfolds = args.cvfolds
-    rsiter = args.rsiter
-    ntrain = args.ntrain
+    k = args.cvfolds
     doshap = args.shap
-    name = args.validation
+    rsiter = args.rsiter
+    name = args.valname
+    lcsize = args.lcsize
 
     CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
     DATA_PATH = os.path.normpath(
-        os.path.join(CURRENT_PATH, os.path.dirname(inp)))
+                os.path.join(CURRENT_PATH, os.path.dirname(inp)))
 
     line()
     print('RANDOM FOREST REGRESSOR')
@@ -79,99 +78,79 @@ def main():
     line()
     data = pd.read_csv(inp)
     size = len(data)
-    print('Data types in dataframe:')
+    cvsize = np.around(size/k)
+
+    print('Data types in data frame:')
     print(data.dtypes)
-    print('Finished reading data, length of data: %s' % size)
+    print('Finished reading data with %s rows, %s columns' % data.shape)
 
     # Describe the data
     line()
     print('Metadata:')
-    print(data.describe())
+    print(data.describe(include='all'))
 
-    # Impute missing values with -999
-    data = data.apply(
-        pd.to_numeric, errors='coerce').fillna(-999, downcast='infer')
+    # Impute missing values with -999 (nan not understood by sklearn)
+    data = data.apply(pd.to_numeric,
+                      errors='coerce').fillna(-999, downcast='infer')
 
-    # Select features to test
-    feature_names = ['cV', 'cN', 'cH', 'Z', 'rmsd', 'rmaxsd', 'dminNS',
-                     'dminHS', 'mult', 'chir', 'q', 'mu', 'Egap', 'cnN',
-                     'dcnN', 'cnS', 'dcnS', 'aminS', 'amaxS', 'aminN', 'amaxN',
-                     'adispN', 'adispH', 'lmin', 'lmax']
-
+    # Select features to test (drop conf, id, Ead)
     # Get matrix of features and target variable vector
-    x = data[pd.Index(feature_names)].values
-    y = data['Ead'].values
+    x = data.drop(columns=['conf', 'id', 'Ead']).to_numpy()
+    y = data['Ead'].to_numpy()
 
     # Stratify based on adsorption energies for balanced train-test folds
     strat = np.around(y)
 
+    # Initialize RF regressor with given/default hyperparameters
+    rf = RandomForestRegressor(n_estimators=ntrees, max_features=nfeatures,
+                               oob_score=True, random_state=rnd, n_jobs=-1)
+
     # Initialize utility methods
-    u = Utilities(x, y, strat, nfolds, rnd)
+    u = Utilities(x, y, strat, k, rnd, DATA_PATH)
 
     # Sample optimal hyperparameters and override defaults
     if rsiter is not None:
         line()
-        dist = dict(n_estimators=np.arange(100, 600, 100),
-                    max_features=np.arange(1, 26))
-        u.random_search(dist, rsiter)
-        ntrees = u.best_params['n_estimators']
-        nfeatures = u.best_params['max_features']
-        print(u.best_params)
-        print('\nOptimal number of trees: %s' % ntrees)
-        print('Optimal number of features: %s' % nfeatures)
-        print('Lowest OOB error: %.4f' % (1-u.best_score))
+        grid = {'n_estimators': np.arange(100, 600, 100),
+                'max_features': np.arange(1, 26)}
+        u.random_search(rf, grid, rsiter)
+        rf.set_params(**u.best_pars)
 
-    # Initialize random forest regressor with given/optimized parameters
-    rf = RandomForestRegressor(n_estimators=ntrees, max_features=nfeatures,
-                               random_state=rnd, n_jobs=-1)
+        print('\nOptimal number of trees: %s' % u.best_pars['n_estimators'])
+        print('Optimal number of features: %s' % u.best_pars['max_features'])
+        print('OOB error: %.4f' % (1-u.best_score))
 
-    # Generate learning curve
-    if ntrain is not None:
-        line()
-        u.learning_curve(rf, lcsize=ntrain)
-        header = 'Train sizes, Train mean, Train std, Test mean, Test std'
-        np.savetxt('%s/learning_curve.out' % DATA_PATH,
-                   np.c_[u.train_sizes, u.lc_train_mean, u.lc_train_std,
-                         u.lc_test_mean, u.lc_test_std],
-                   header=header, delimiter=',')
-
-    # Generate validation curve
+    # Generate validation curve with respect to given parameter
     if name is not None:
         line()
         if name == 'max_features':
-            alt_name = 'n_estimators'
-            alt_param = ntrees
             grid = np.linspace(1, 25, 25, dtype=int)
         elif name == 'n_estimators':
-            alt_name = 'max_features'
-            alt_param = nfeatures
             grid = np.logspace(1, 3, 49, dtype=int)
         else:
             print('Parameter %s not implemented.' % name)
             print('Specify max_features or n_estimators (or hack the code).')
             quit()
 
-        alt = {alt_name: alt_param}
-        u.validation_curve(name, grid, alt)
-        header = 'Parameters, Train mean, Train std, Test mean, Test std'
-        np.savetxt('%s/validation_curve_%s.out' % (DATA_PATH, name),
-                   np.c_[grid, u.vc_train_mean, u.vc_train_std,
-                         u.vc_test_mean, u.vc_test_std],
-                   header=header, delimiter=',')
+        u.validation_curve(rf, name, grid)
+
+    # Generate learning curve
+    if lcsize is not None:
+        line()
+        grid = np.linspace(0.0858, 1, lcsize)
+        u.learning_curve(rf, grid)
 
     line()
 
     # Train, test model and perform SHAP analysis with k-fold stratifed CV
     print('Predicting numerical values for training and test set:')
-    print('%s-fold cross-validation (training data: %s, test data: %s)' %
-          (nfolds, size-round(size/nfolds), round(size/nfolds)))
+    print('%s-fold cross-validation (training data: %.0f, test data: %.0f)' %
+          (k, size-cvsize, cvsize))
 
-    cv = CrossValidate(nfolds, rnd)
-    gen = cv.skf.split(x, strat)
+    cv = CrossValidate(k, rnd)
     results = Parallel(n_jobs=cv.ncpu)(
-              delayed(cv.run)(k, train, test, x, y, rf,
-                              DATA_PATH, doshap=doshap)
-              for k, (train, test) in enumerate(gen))
+              delayed(cv.run)(i, train, test, rf, x, y, DATA_PATH, doshap)
+              for i, (train, test) in enumerate(cv.skf.split(x, strat)))
 
     mean_scores = np.mean(results, axis=0)
     std_scores = np.std(results, axis=0, ddof=1)

@@ -1,83 +1,192 @@
 '''
-Class for training and testing the machine learning model with stratified
-k-fold cross-validation. Includes an option for calculating Shapley values
-for feature attribution as presented by Lundberg & Lee (SHAP).
+Class for training and validating a machine learning model with nested
+k*l-fold cross-validation. Includes an option for calculating Shapley
+values for feature attribution as proposed by Lundberg & Lee (SHAP).
 
 author: Rasmus Kronberg
 email: rasmus.kronberg@aalto.fi
 '''
 
 # Load necessary packages
-from sklearn.model_selection import StratifiedKFold
+import shap
+import numpy as np
+import pandas as pd
+from time import time
+from joblib import Parallel, delayed, cpu_count, dump
+
 from sklearn.metrics import mean_squared_error as mse
 from sklearn.metrics import mean_absolute_error as mae
-import multiprocessing as mp
-import numpy as np
-import shap
+from sklearn.metrics import r2_score as r2
+from sklearn.model_selection import StratifiedKFold, RandomizedSearchCV, \
+    ParameterSampler
+
+
+def line():
+
+    print('\n========================\n')
 
 
 class CrossValidate:
-    def __init__(self, k, rnd):
+    def __init__(self, x, y, data, kout, kin, strat, n_iter, rnd):
 
         # Initialize
-        self.k = k
-        self.skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=rnd)
-        self.ncpu = k if k <= mp.cpu_count() else mp.cpu_count()
-        print('Multiprocessing with %s CPUs\n' % self.ncpu)
+        self.x = x
+        self.y = y
+        self.data = data
+        self.strat = strat
+        self.rnd = rnd
+        self.n_iter = n_iter
+        self.outer = StratifiedKFold(
+            n_splits=kout, shuffle=True, random_state=rnd)
 
-    def run(self, i, train, test, model, x, y, path, doshap=None):
+        # If performing nested CV, initialize inner loop
+        if kin is not None:
+            self.inner = StratifiedKFold(
+                n_splits=kin, shuffle=True, random_state=rnd)
 
-        # Cross-validate results using k stratified splits
-        print('Processing cross-validation split %s/%s' % (i+1, self.k))
-        model.fit(x[train], y[train])
-        y_pred_test = model.predict(x[test])
-        y_pred_train = model.predict(x[train])
+    def random_search(self, model, train, grid):
 
-        rmse_test = np.sqrt(mse(y[test], y_pred_test))
-        rmse_train = np.sqrt(mse(y[train], y_pred_train))
-        mae_test = mae(y[test], y_pred_test)
-        mae_train = mae(y[train], y_pred_train)
-        r2_test = model.score(x[test], y[test])
-        r2_train = model.score(x[train], y[train])
+        print('Performing random search of optimal hyperparameters...')
+        cv = self.outer.split(
+            self.x.iloc[train], self.strat.iloc[train])
 
-        # Calculate SHAP (interaction) values
-        if doshap is not None:
+        # Grid search hyperparameters on provided training set using CV
+        rs = RandomizedSearchCV(model, grid, cv=cv, n_iter=self.n_iter,
+                                scoring='neg_mean_squared_error', n_jobs=-1,
+                                verbose=2, random_state=self.rnd)
 
-            # Reset missing values to nan (understood by SHAP)
-            x_test = x[test]
-            x_test[np.where(x_test == -999)] = np.nan
+        # Fit models
+        rs.fit(self.x.iloc[train], self.y.iloc[train])
 
-            # Calculate observational ('true to the data') SHAP values
-            explainer = shap.explainers.Tree(model)
-            shap_base = explainer.expected_value
-            shap_values = explainer.shap_values(x_test)
+        # Get best score and corresponding parameters
+        self.best_score = np.sqrt(-rs.best_score_)
+        self.best_pars = rs.best_params_
 
-            # Calculate SHAP interaction values
-            if doshap < 0:
-                interaction_values = explainer.shap_interaction_values(x_test)
+    def loop_params(self, model, train, val, p):
 
-                # Store 3D interaction matrix as 2D slices
-                with open('%s/interact-split_%s.out' % (path, i+1), 'w') as o:
-                    o.write('# Interact. values, shape %s (CV split %s/%s)\n'
-                            % (interaction_values.shape, i+1, self.k))
-                    for data_slice in interaction_values:
-                        np.savetxt(o, data_slice, delimiter=',')
-                        o.write('# Next slice\n')
+        # Set model hyperparameters p
+        model.set_params(**p)
 
-            np.savetxt('%s/shap-split_%s.out' % (path, i+1), shap_values,
-                       header='SHAP values (CV split %s/%s, Base value %.6f)'
-                       % (i+1, self.k, shap_base), delimiter=',')
-            np.savetxt('%s/features-split_%s.out' % (path, i+1), x_test,
-                       header='Features (CV split %s/%s)'
-                       % (i+1, self.k), delimiter=',')
+        # Fit model on train, evaluate on val
+        model.fit(self.x.iloc[train], self.y.iloc[train])
+        y_pred = model.predict(self.x.iloc[val])
 
-        np.savetxt('%s/y-train-split_%s.out' % (path, i+1),
-                   np.c_[y[train], y_pred_train],
-                   header='y_train, y_pred_train (CV split %s/%s)'
-                   % (i+1, self.k), delimiter=',')
-        np.savetxt('%s/y-test-split_%s.out' % (path, i+1),
-                   np.c_[y[test], y_pred_test],
-                   header='y_test, y_pred_test (CV split %s/%s)'
-                   % (i+1, self.k), delimiter=',')
+        return np.sqrt(mse(y_pred, self.y.iloc[val]))
 
-        return rmse_train, mae_train, r2_train, rmse_test, mae_test, r2_test
+    def nested_crossval(self, model, grid, do_shap, path):
+
+        print('Performing nested cross-validation:')
+
+        # Initialize
+        n_inner = self.inner.get_n_splits()
+        n_outer = self.outer.get_n_splits()
+
+        print('%i outer folds, %i inner folds, %i candidates = %i models\n'
+              % (n_outer, n_inner, self.n_iter, n_outer*n_inner*self.n_iter))
+
+        self.rmse_test = np.zeros(n_outer)
+        self.rmse_train = np.zeros(n_outer)
+        self.mae_test = np.zeros(n_outer)
+        self.mae_train = np.zeros(n_outer)
+        self.r2_test = np.zeros(n_outer)
+        self.r2_train = np.zeros(n_outer)
+
+        ncpu = self.n_iter if self.n_iter < cpu_count() else cpu_count()
+        outer_cv = self.outer.split(self.x, self.strat)
+
+        # Loop over outer folds (trainval-test split)
+        for i, (trainval, test) in enumerate(outer_cv):
+
+            t_outer = time()
+            scores = np.zeros((n_inner, self.n_iter))
+
+            inner_cv = self.inner.split(
+                self.x.iloc[trainval], self.strat.iloc[trainval])
+            settings = list(ParameterSampler(
+                grid, n_iter=self.n_iter, random_state=self.rnd))
+
+            # For each trainval set, loop over inner folds (train-val split)
+            for j, (train, val) in enumerate(inner_cv):
+
+                t_inner = time()
+
+                # For each train-val split, loop over all parameter settings
+                scores[j, :] = Parallel(n_jobs=ncpu, verbose=10)(
+                        delayed(self.loop_params)(model, train, val, p)
+                        for p in settings)
+
+                line()
+                print('Processed INNER fold %i/%i (%.1f s)'
+                      % (j+1, n_inner, time()-t_inner))
+                line()
+
+            # Average scores over the inner folds for each candidate
+            averages = np.mean(scores, axis=0)
+            stds = np.std(scores, axis=0, ddof=1)
+
+            # Locate index corresponding to best hyperparameters (min loss)
+            best_idx = np.argmin(averages)
+            best_score = averages[best_idx]
+            best_std = stds[best_idx]
+            best_pars = settings[best_idx]
+
+            # Set best hyperparameters, refit model and evaluate on test set
+            model.set_params(**best_pars)
+            model.fit(self.x.iloc[trainval], self.y.iloc[trainval])
+            y_pred_test = model.predict(self.x.iloc[test])
+            y_pred_train = model.predict(self.x.iloc[trainval])
+
+            # Compute outer loop metrics
+            self.rmse_test[i] = np.sqrt(mse(self.y.iloc[test], y_pred_test))
+            self.rmse_train[i] = np.sqrt(mse(self.y.iloc[trainval],
+                                             y_pred_train))
+            self.mae_test[i] = mae(self.y.iloc[test], y_pred_test)
+            self.mae_train[i] = mae(self.y.iloc[trainval], y_pred_train)
+            self.r2_test[i] = r2(self.y.iloc[test], y_pred_test)
+            self.r2_train[i] = r2(self.y.iloc[trainval], y_pred_train)
+
+            # Dump true values and predictions
+            train_out = pd.DataFrame({'y_train': self.y.iloc[trainval],
+                                      'y_pred_train': y_pred_train})
+            train_out.to_csv('%s/y-train-split_%s.csv' % (path, i+1))
+
+            test_out = pd.DataFrame({'y_test': self.y.iloc[test],
+                                     'y_pred_test': y_pred_test})
+            test_out.to_csv('%s/y-test-split_%s.csv' % (path, i+1))
+
+            print('Processed OUTER fold %i/%i (%.1f s)'
+                  % (i+1, n_outer, time()-t_outer))
+            print('Best hyperparameters: %s' % best_pars)
+            print('Best inner score: %.4f +/- %.4f' % (best_score, best_std))
+            print('Outer score: %.4f' % self.rmse_test[i])
+            line()
+
+            # Calculate observational SHAP (interaction) values
+            if do_shap is not None:
+
+                t_shap = time()
+                print('Calculating SHAP values...')
+
+                x_test = self.x.iloc[test]
+
+                # Calculate SHAP values
+                explainer = shap.explainers.GPUTree(model)
+                shap_values = explainer(x_test)
+
+                # Dump SHAP explanation object
+                dump(shap_values, '%s/shap-split_%s.pkl' % (path, i+1))
+
+                # Calculate SHAP interaction values
+                if do_shap < 0:
+                    intval = explainer.shap_interaction_values(x_test)
+
+                    # Store 3D interaction matrix as 2D slices
+                    with open('%s/int-split_%s.csv' % (path, i+1), 'w') as o:
+                        o.write('# Array shape (%s, %s, %s)\n' % intval.shape)
+                        for data_slice in intval:
+                            pd.DataFrame(data_slice).to_csv(
+                                o, mode='a', index=False, header=False)
+                            o.write('# Next slice\n')
+
+                print('Done! (%.1f s)' % (time()-t_shap))
+                line()

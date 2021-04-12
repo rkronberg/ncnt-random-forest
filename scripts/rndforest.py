@@ -3,25 +3,28 @@ Random Forest ML implementation for H adsorption on NCNTs.
 Includes options for randomized hyperparameter search, calculation
 of SHAP values and learning/validation curve generation.
 
-Optimal hyperparameters based on OOB scores
-GGA dataset: ntrees 500, nfeatures 12
-Hybrid dataset: ntrees 500, nfeatures 25
-
 author: Rasmus Kronberg
 email: rasmus.kronberg@aalto.fi
 '''
 
 # Load necessary packages
-from sklearn.ensemble import RandomForestRegressor
-from argparse import ArgumentParser
-from joblib import Parallel, delayed
-from time import time
 import pandas as pd
 import numpy as np
-import os
+
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import mean_absolute_error as mae
+from sklearn.metrics import mean_squared_error as mse
+from sklearn.metrics import r2_score as r2
+
+from argparse import ArgumentParser
+from time import time
+from pathlib import Path
+from scipy import stats
+from joblib import dump
+from os import path
 
 from crossval import CrossValidate
-from utils import Utilities
 
 
 def parse():
@@ -29,23 +32,33 @@ def parse():
     # Parse command line arguments
     parser = ArgumentParser(
         description='Random forest ML model for H adsorption on NCNTs')
-    parser.add_argument('-i', '--input', required=True, help='Input data')
-    parser.add_argument('-nt', '--ntrees', default=100, type=int,
-                        help='Number of trees')
-    parser.add_argument('-nf', '--nfeatures', default=10, type=int,
+    required = parser.add_argument_group('Required named arguments')
+    required.add_argument('-i', '--input', required=True, help='Input data')
+    parser.add_argument('--n_estimators', default=100, type=int,
+                        help='# of estimators')
+    parser.add_argument('--max_features', type=int,
                         help='Number of features considered at each split')
-    parser.add_argument('-cv', '--cvfolds', default=10, type=int,
-                        help='Number of CV folds')
-    parser.add_argument('-sh', '--shap', type=int,
-                        help='Run SHAP (negative value includes interactions)')
-    parser.add_argument('-rs', '--rsiter', type=int,
-                        help='Perform this many parameter search iterations')
-    parser.add_argument('-vc', '--valname', type=str,
-                        help='Generate validation curve for given parameter')
-    parser.add_argument('-lc', '--lcsize', type=int,
-                        help='Generate learning curve with given train sizes')
+    parser.add_argument('--max_depth', type=int,
+                        help='Maximum depth of any tree')
+    parser.add_argument('--min_samples_split', default=2, type=int,
+                        help='Minimum # of samples required to split node')
+    parser.add_argument('--cv_folds', default=5, type=int,
+                        help='# of (outer) CV folds')
+    parser.add_argument('--inner_folds', type=int,
+                        help='Perform nested CV with given # of inner folds')
+    parser.add_argument('--shap', type=int,
+                        help='Run SHAP (SHAP < 0 includes interactions)')
+    parser.add_argument('--random_search', action='store_true',
+                        help='Perform (non-nested) random search')
+    parser.add_argument('--n_iter', default=10, type=int,
+                        help='# of random parameter settings to test')
 
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if args.shap and not args.inner_folds:
+        parser.error('The following arguments are required: --inner_folds')
+
+    return args
 
 
 def line():
@@ -57,17 +70,18 @@ def main():
 
     args = parse()
     inp = args.input
-    ntrees = args.ntrees
-    nfeatures = args.nfeatures
-    k = args.cvfolds
-    doshap = args.shap
-    rsiter = args.rsiter
-    name = args.valname
-    lcsize = args.lcsize
+    n_estimators = args.n_estimators
+    max_features = args.max_features
+    min_samples_split = args.min_samples_split
+    max_depth = args.max_depth
+    cv_folds = args.cv_folds
+    do_shap = args.shap
+    inner_folds = args.inner_folds
+    random_search = args.random_search
+    n_iter = args.n_iter
 
-    CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
-    DATA_PATH = os.path.normpath(
-                os.path.join(CURRENT_PATH, os.path.dirname(inp)))
+    CURRENT_PATH = path.dirname(path.realpath(__file__))
+    DATA_PATH = path.normpath(path.join(CURRENT_PATH, path.dirname(inp)))
 
     line()
     print('RANDOM FOREST REGRESSOR')
@@ -77,8 +91,6 @@ def main():
     # Get the data
     line()
     data = pd.read_csv(inp)
-    size = len(data)
-    cvsize = np.around(size/k)
 
     print('Data types in data frame:')
     print(data.dtypes)
@@ -95,79 +107,88 @@ def main():
 
     # Select features to test (drop conf, id, Ead)
     # Get matrix of features and target variable vector
-    x = data.drop(columns=['conf', 'id', 'Ead']).to_numpy()
-    y = data['Ead'].to_numpy()
+    x = data.drop(columns=['conf', 'id', 'Ead'])
+    y = data['Ead']
 
     # Stratify based on adsorption energies for balanced train-test folds
     strat = np.around(y)
 
     # Initialize RF regressor with given/default hyperparameters
-    rf = RandomForestRegressor(n_estimators=ntrees, max_features=nfeatures,
-                               oob_score=True, random_state=rnd, n_jobs=-1)
+    rf = RandomForestRegressor(
+        n_estimators=n_estimators, max_features=max_features,
+        min_samples_split=min_samples_split, max_depth=max_depth,
+        random_state=rnd, n_jobs=-1)
 
-    # Initialize utility methods
-    u = Utilities(x, y, strat, k, rnd, DATA_PATH)
+    # Initialize cross-validation methods
+    cv = CrossValidate(x, y, data, cv_folds, inner_folds, strat, n_iter, rnd)
 
     # Sample optimal hyperparameters and override defaults
-    if rsiter is not None:
+    if inner_folds is not None:
         line()
-        grid = {'n_estimators': np.arange(100, 600, 100),
-                'max_features': np.arange(1, 26)}
-        u.random_search(rf, grid, rsiter)
-        rf.set_params(**u.best_pars)
+        grid = {'max_features': stats.randint(5, 26),
+                'max_depth': stats.randint(10, 56),
+                'min_samples_split': stats.randint(2, 4)}
 
-        print('\nOptimal number of trees: %s' % u.best_pars['n_estimators'])
-        print('Optimal number of features: %s' % u.best_pars['max_features'])
-        print('OOB error: %.4f' % (1-u.best_score))
+        cv.nested_crossval(rf, grid, do_shap, DATA_PATH)
 
-    # Generate validation curve with respect to given parameter
-    if name is not None:
+        print('Unbiased generalization performance estimation:\n')
+        print('Training set:')
+        print('MAE (Train): %.4f +/- %.4f'
+              % (np.mean(cv.mae_train), np.std(cv.mae_train, ddof=1)))
+        print('RMSE (Train): %.4f +/- %.4f'
+              % (np.mean(cv.rmse_train), np.std(cv.rmse_train, ddof=1)))
+        print('R2 (Train): %.4f +/- %.4f'
+              % (np.mean(cv.r2_train), np.std(cv.r2_train, ddof=1)))
+        print('Test set:')
+        print('MAE (Test): %.4f +/- %.4f'
+              % (np.mean(cv.mae_test), np.std(cv.mae_test, ddof=1)))
+        print('RMSE (Test): %.4f +/- %.4f'
+              % (np.mean(cv.rmse_test), np.std(cv.rmse_test, ddof=1)))
+        print('R2 (Test): %.4f +/- %.4f'
+              % (np.mean(cv.r2_test), np.std(cv.r2_test, ddof=1)))
+
+    # Split data
+    skf = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=rnd)
+    train, test = next(skf.split(x, strat))
+
+    if random_search:
         line()
-        if name == 'max_features':
-            grid = np.linspace(1, 25, 25, dtype=int)
-        elif name == 'n_estimators':
-            grid = np.logspace(1, 3, 49, dtype=int)
-        else:
-            print('Parameter %s not implemented.' % name)
-            print('Specify max_features or n_estimators (or hack the code).')
-            quit()
+        grid = {'max_features': stats.randint(5, 26),
+                'max_depth': stats.randint(10, 56),
+                'min_samples_split': stats.randint(2, 4)}
 
-        u.validation_curve(rf, name, grid)
+        # Tune hyperparameters using training set and cross-validation
+        cv.random_search(rf, train, grid)
 
-    # Generate learning curve
-    if lcsize is not None:
-        line()
-        grid = np.linspace(0.0858, 1, lcsize)
-        u.learning_curve(rf, grid)
+        print('\nBest parameters: %s' % cv.best_pars)
+        print('Best score: %.4f' % cv.best_score)
 
+        rf.set_params(**cv.best_pars)
+
+    # Train, test final model
     line()
+    print('Train, test final model:')
 
-    # Train, test model and perform SHAP analysis with k-fold stratifed CV
-    print('Predicting numerical values for training and test set:')
-    print('%s-fold cross-validation (training data: %.0f, test data: %.0f)' %
-          (k, size-cvsize, cvsize))
-
-    cv = CrossValidate(k, rnd)
-    results = Parallel(n_jobs=cv.ncpu)(
-              delayed(cv.run)(i, train, test, rf, x, y, DATA_PATH, doshap)
-              for i, (train, test) in enumerate(cv.skf.split(x, strat)))
-
-    mean_scores = np.mean(results, axis=0)
-    std_scores = np.std(results, axis=0, ddof=1)
+    rf.fit(x.iloc[train], y.iloc[train])
+    y_pred_test = rf.predict(x.iloc[test])
+    y_pred_train = rf.predict(x.iloc[train])
 
     print('\nTraining set scoring:')
-    print('RMSE (Train): %.4f +/- %.4f eV' % (mean_scores[0], std_scores[0]))
-    print('MAE (Train): %.4f +/- %.4f eV' % (mean_scores[1], std_scores[1]))
-    print('R2 (Train): %.4f +/- %.4f' % (mean_scores[2], std_scores[2]))
+    print('MAE (Train): %.4f' % mae(y_pred_train, y.iloc[train]))
+    print('RMSE (Train): %.4f' % np.sqrt(mse(y_pred_train, y.iloc[train])))
+    print('R2 (Train): %.4f' % r2(y_pred_train, y.iloc[train]))
     print('Test set scoring:')
-    print('RMSE (Test): %.4f +/- %.4f eV' % (mean_scores[3], std_scores[3]))
-    print('MAE (Test): %.4f +/- %.4f eV' % (mean_scores[4], std_scores[4]))
-    print('R2 (Test): %.4f +/- %.4f' % (mean_scores[5], std_scores[5]))
+    print('MAE (Test): %.4f' % mae(y_pred_test, y.iloc[test]))
+    print('RMSE (Test): %.4f' % np.sqrt(mse(y_pred_test, y.iloc[test])))
+    print('R2 (Test): %.4f' % r2(y_pred_test, y.iloc[test]))
+
+    # Pickle model
+    dump(rf, '%s/model.pkl' % DATA_PATH)
 
     print('\nScript executed in %.0f seconds' % (time()-t0))
 
 
 if __name__ == '__main__':
     t0 = time()
-    rnd = 123
+    rnd = np.random.RandomState(42)
     main()

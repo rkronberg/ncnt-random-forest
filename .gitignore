@@ -1,6 +1,9 @@
-# Figures, output files, pre- and post-processing scripts
+# Figures, output files (exclude input)
 *.pdf
 *.out
+*.pkl
+*.csv
+!masterdata.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

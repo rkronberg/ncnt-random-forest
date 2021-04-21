@@ -3,7 +3,7 @@ Random forest (RF) and Shapley additive explanations (SHAP) analysis implementat
 
 ## Usage
 
-```shell
+```console
 $ python rndforest.py --help
 usage: rndforest.py [-h] [--drop DROP [DROP ...]] [--n_estimators N_ESTIMATORS]
                     [--max_features MAX_FEATURES] [--max_depth MAX_DEPTH]

@@ -31,30 +31,35 @@ def parse():
 
     # Parse command line arguments
     parser = ArgumentParser(
-        description='Random forest ML model for H adsorption on NCNTs')
-    required = parser.add_argument_group('Required named arguments')
-    required.add_argument('-i', '--input', required=True, help='Input data')
+        description='Random forest and SHAP analysis of H adsorption on NCNTs')
+    parser.add_argument('--drop', default=[], nargs='+',
+                        help='Columns not to consider as features')
     parser.add_argument('--n_estimators', default=100, type=int,
-                        help='# of estimators')
+                        help='Number of estimators (decision trees)')
     parser.add_argument('--max_features', type=int,
                         help='Number of features considered at each split')
     parser.add_argument('--max_depth', type=int,
-                        help='Maximum depth of any tree')
+                        help='Max. depth of any tree')
     parser.add_argument('--min_samples_split', default=2, type=int,
-                        help='Minimum # of samples required to split node')
+                        help='Min. number of samples required to split node')
     parser.add_argument('--cv_folds', default=5, type=int,
-                        help='# of (outer) CV folds')
+                        help='Number of (outer) CV folds')
     parser.add_argument('--inner_folds', type=int,
-                        help='Perform nested CV with given # of inner folds')
+                        help='Do nested CV with given number of inner folds')
     parser.add_argument('--shap', type=int,
-                        help='Run SHAP (SHAP < 0 includes interactions)')
+                        help='Run SHAP (arg. < 0 includes interactions)')
     parser.add_argument('--random_search', action='store_true',
-                        help='Perform (non-nested) random search')
+                        help='Do (non-nested) randomized parameter search')
     parser.add_argument('--n_iter', default=10, type=int,
-                        help='# of random parameter settings to test')
+                        help='Number of random parameter settings to test')
+
+    required = parser.add_argument_group('Required named arguments')
+    required.add_argument('-i', '--input', required=True,
+                          help='Input DataFrame (.csv)')
+    required.add_argument('-t', '--target', required=True,
+                          help='Name of target column in input DataFrame')
 
     args = parser.parse_args()
-
     if args.shap and not args.inner_folds:
         parser.error('The following arguments are required: --inner_folds')
 
@@ -70,6 +75,8 @@ def main():
 
     args = parse()
     inp = args.input
+    target = args.target
+    exclude = args.drop
     n_estimators = args.n_estimators
     max_features = args.max_features
     min_samples_split = args.min_samples_split
@@ -107,10 +114,10 @@ def main():
 
     # Select features to test (drop conf, id, Ead)
     # Get matrix of features and target variable vector
-    x = data.drop(columns=['conf', 'id', 'Ead'])
-    y = data['Ead']
+    x = data.drop(columns=exclude)
+    y = data[target]
 
-    # Stratify based on adsorption energies for balanced train-test folds
+    # Stratify based on target variable for balanced train-test folds
     strat = np.around(y)
 
     # Initialize RF regressor with given/default hyperparameters
@@ -147,7 +154,7 @@ def main():
         print('R2 (Test): %.4f +/- %.4f'
               % (np.mean(cv.r2_test), np.std(cv.r2_test, ddof=1)))
 
-    # Split data
+    # Split data avoiding train_test_split n_splits > class members ValueError
     skf = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=rnd)
     train, test = next(skf.split(x, strat))
 

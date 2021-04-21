@@ -1,5 +1,5 @@
 # ncnt-random-forest
-Random forest (RF) and Shapley additive explanations (SHAP) analysis implementation written in Python for machine learning and analysis of hydrogen adsorption on defective nitrogen doped carbon nanotubes (NCNT).
+Random forest (RF) and Shapley additive explanations (SHAP) analysis implementation written in Python for machine learning and analysis of hydrogen adsorption on defective nitrogen doped carbon nanotubes (NCNT). The script can be easily applied also for other datasets and regression tasks.
 
 ## Usage
 
